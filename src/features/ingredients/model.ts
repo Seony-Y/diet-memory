@@ -14,6 +14,13 @@ export interface Ingredient {
   favorite: boolean;
 }
 
+export interface IngredientCategory {
+  id: string;
+  name: string;
+  color: string;
+  isDefault: boolean;
+}
+
 export const categories = [
   "전체",
   "즐겨찾기",

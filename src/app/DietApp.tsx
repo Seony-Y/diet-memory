@@ -26,7 +26,10 @@ import type {
   NutritionIntake,
 } from "../features/dashboard/model";
 import { IngredientsPage } from "../features/ingredients/IngredientsPage";
-import type { Ingredient } from "../features/ingredients/model";
+import type {
+  Ingredient,
+  IngredientCategory,
+} from "../features/ingredients/model";
 import { useNutritionGoal } from "../features/nutrition/model";
 import { RecordSheet } from "../features/records/RecordSheet";
 import { SchedulePage } from "../features/schedule/SchedulePage";
@@ -35,8 +38,10 @@ import { NavButton } from "../shared/ui";
 import {
   addExerciseRecord,
   addIngredient,
+  addIngredientCategory,
   deleteExerciseRecord,
   deleteIngredient,
+  deleteIngredientCategory,
   deleteMealRecord,
   deleteScheduleRecord,
   deleteTodayBodyRecord,
@@ -93,6 +98,9 @@ export default function DietApp({
   } = useBodyRecords();
   const { goal, setGoal } = useNutritionGoal();
   const [foods, setFoods] = useState<Ingredient[]>([]);
+  const [ingredientCategories, setIngredientCategories] = useState<
+    IngredientCategory[]
+  >([]);
   const [meals, setMeals] = useState<MealSummary[]>([]);
   const [intake, setIntake] = useState<NutritionIntake>(emptyNutritionIntake);
   const [exercises, setExercises] = useState<ExerciseRecord[]>([]);
@@ -123,6 +131,7 @@ export default function DietApp({
       .then((data) => {
         if (!active) return;
         setGoal(data.goal);
+        setIngredientCategories(data.categories);
         setFoods(data.foods);
         setBodyRecords(data.bodyRecords);
         setWater(data.water);
@@ -245,6 +254,55 @@ export default function DietApp({
     } catch (error) {
       setDataError(
         error instanceof Error ? error.message : "저장에 실패했습니다.",
+      );
+    }
+  };
+
+  const createIngredientCategory = async (name: string, color: string) => {
+    if (["전체", "즐겨찾기", "기타"].includes(name)) {
+      const error = new Error(`${name} 카테고리는 기본 항목입니다.`);
+      setDataError(error.message);
+      throw error;
+    }
+    try {
+      const created = await addIngredientCategory(name, color);
+      setIngredientCategories((current) => [...current, created]);
+    } catch (error) {
+      setDataError(
+        error instanceof Error
+          ? error.message
+          : "카테고리 추가에 실패했습니다.",
+      );
+      throw error;
+    }
+  };
+
+  const removeIngredientCategory = async (item: IngredientCategory) => {
+    try {
+      await deleteIngredientCategory(item.id);
+      const fallback = ingredientCategories.find(
+        (category) => category.name === "기타",
+      );
+      setIngredientCategories((current) =>
+        current.filter((category) => category.id !== item.id),
+      );
+      setFoods((current) =>
+        current.map((food) =>
+          food.category === item.name
+            ? {
+                ...food,
+                category: "기타",
+                categoryColor: fallback?.color ?? "#E8ECEE",
+              }
+            : food,
+        ),
+      );
+      if (category === item.name) setCategory("전체");
+    } catch (error) {
+      setDataError(
+        error instanceof Error
+          ? error.message
+          : "카테고리 삭제에 실패했습니다.",
       );
     }
   };
@@ -384,6 +442,7 @@ export default function DietApp({
       const saved: ScheduleEntry = {
         id,
         scheduledOn: input.scheduledOn,
+        scheduledTime: input.scheduledTime,
         status: editingSchedule?.status ?? "확정",
         title: input.title,
         detail: editingSchedule?.detail ?? "",
@@ -473,6 +532,7 @@ export default function DietApp({
             {tab === "foods" && (
               <IngredientsPage
                 foods={filteredFoods}
+                categories={ingredientCategories}
                 category={category}
                 search={search}
                 setCategory={setCategory}
@@ -504,6 +564,13 @@ export default function DietApp({
                   setEditingIngredient(food);
                   setSheet("ingredient");
                 }}
+                addCategory={createIngredientCategory}
+                deleteCategory={(item) =>
+                  setDeleteConfirmation({
+                    message: `${item.name} 카테고리를 삭제합니다. 이 카테고리의 재료는 기타로 이동합니다.`,
+                    action: () => removeIngredientCategory(item),
+                  })
+                }
               />
             )}
             {tab === "stats" && (
@@ -575,6 +642,7 @@ export default function DietApp({
           body={todayBody}
           goal={goal}
           foods={foods}
+          categories={ingredientCategories}
           scheduleTitle={scheduleTitle}
           scheduleDate={scheduleDate}
           ingredient={editingIngredient}

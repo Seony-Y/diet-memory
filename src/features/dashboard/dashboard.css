@@ -125,7 +125,7 @@
 
 .selected-day-schedule > p {
   margin: 0;
-  padding: 14px 0 4px;
+  padding: 14px 0 12px;
   color: #718087;
   font-size: 11px;
   text-align: center;
@@ -241,6 +241,24 @@
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.statistics-period .period {
+  gap: 3px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.statistics-period .period button {
+  border: 1px solid #dce4e8;
+  border-radius: 5px;
+  background: #fff;
+}
+
+.statistics-period .period .active {
+  border-color: var(--mp-color-primitives-blue-05);
+  background: var(--mp-color-primitives-blue-05);
 }
 
 .period-nav {

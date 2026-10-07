@@ -10,7 +10,7 @@ import {
   setDate,
   startOfMonth,
 } from "date-fns";
-import { ChevronLeft, ChevronRight, Pencil, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock3, Pencil, Plus } from "lucide-react";
 import { PageTitle, SectionTitle } from "../../shared/ui";
 import type { ScheduleEntry } from "./model";
 
@@ -159,11 +159,16 @@ function ScheduleItem({
         <strong>{date ? format(date, "d") : "?"}</strong>
         <span>{date ? format(date, "MMM").toUpperCase() : "TBD"}</span>
       </div>
-      <div>
+      <div className="schedule-copy">
         <em>{schedule.status}</em>
         <h3>{schedule.title}</h3>
         {schedule.detail && <p>{schedule.detail}</p>}
       </div>
+      {schedule.scheduledTime && (
+        <span className="schedule-time">
+          <Clock3 size={10} /> {schedule.scheduledTime}
+        </span>
+      )}
       <div className="record-actions">
         <button
           className="schedule-edit"

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, FormEvent } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -7,14 +7,17 @@ import {
   Pencil,
   Plus,
   Search,
+  Settings2,
+  Trash2,
 } from "lucide-react";
 import type { Sheet } from "../../app/types";
-import { categories } from "./model";
-import type { Ingredient } from "./model";
+import { categoryColorPalette } from "./model";
+import type { Ingredient, IngredientCategory } from "./model";
 import { PageTitle } from "../../shared/ui";
 
 interface IngredientsPageProps {
   foods: Ingredient[];
+  categories: IngredientCategory[];
   category: string;
   search: string;
   setCategory: (value: string) => void;
@@ -22,10 +25,13 @@ interface IngredientsPageProps {
   openSheet: (sheet: Sheet) => void;
   toggleFavorite: (id: number | string) => void;
   editFood: (food: Ingredient) => void;
+  addCategory: (name: string, color: string) => Promise<void>;
+  deleteCategory: (category: IngredientCategory) => void;
 }
 
 export function IngredientsPage({
   foods,
+  categories,
   category,
   search,
   setCategory,
@@ -33,12 +39,18 @@ export function IngredientsPage({
   openSheet,
   toggleFavorite,
   editFood,
+  addCategory,
+  deleteCategory,
 }: IngredientsPageProps) {
   const categoryList = useRef<HTMLDivElement>(null);
   const [categoryScroll, setCategoryScroll] = useState({
     left: false,
     right: false,
   });
+  const [managingCategories, setManagingCategories] = useState(false);
+  const [categoryName, setCategoryName] = useState("");
+  const [categoryColor, setCategoryColor] = useState(categoryColorPalette[0]);
+  const [savingCategory, setSavingCategory] = useState(false);
 
   useEffect(() => {
     const list = categoryList.current;
@@ -54,7 +66,7 @@ export function IngredientsPage({
     observer.observe(list);
     updateScrollState();
     return () => observer.disconnect();
-  }, []);
+  }, [categories]);
 
   const moveCategories = (direction: -1 | 1) => {
     const list = categoryList.current;
@@ -65,6 +77,21 @@ export function IngredientsPage({
     });
   };
 
+  const submitCategory = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const name = categoryName.trim();
+    if (!name) return;
+    setSavingCategory(true);
+    try {
+      await addCategory(name, categoryColor);
+      setCategoryName("");
+    } catch {
+      // The app-level error banner reports the API or reserved-name error.
+    } finally {
+      setSavingCategory(false);
+    }
+  };
+
   return (
     <>
       <PageTitle
@@ -72,10 +99,69 @@ export function IngredientsPage({
         title="재료 보관함"
         description="자주 먹는 재료의 영양정보를 저장해 두세요."
       >
-        <button onClick={() => openSheet("ingredient")}>
-          <Plus size={17} /> 재료 등록
-        </button>
+        <div className="page-title-actions">
+          <button
+            className="secondary"
+            onClick={() => setManagingCategories((current) => !current)}
+          >
+            <Settings2 size={16} /> 카테고리 관리
+          </button>
+          <button onClick={() => openSheet("ingredient")}>
+            <Plus size={17} /> 재료 등록
+          </button>
+        </div>
       </PageTitle>
+      {managingCategories && (
+        <section className="category-manager">
+          <header>
+            <div>
+              <strong>카테고리 관리</strong>
+              <span>새 카테고리를 만들거나 직접 만든 항목을 삭제하세요.</span>
+            </div>
+          </header>
+          <form onSubmit={submitCategory}>
+            <input
+              value={categoryName}
+              onChange={(event) => setCategoryName(event.target.value)}
+              maxLength={30}
+              placeholder="카테고리 이름"
+              aria-label="새 카테고리 이름"
+              required
+            />
+            <div className="category-manager-colors">
+              {categoryColorPalette.map((color) => (
+                <button
+                  type="button"
+                  className={categoryColor === color ? "active" : ""}
+                  style={{ backgroundColor: color }}
+                  onClick={() => setCategoryColor(color)}
+                  aria-label={`${color} 색상 선택`}
+                  key={color}
+                />
+              ))}
+            </div>
+            <button className="category-add" disabled={savingCategory}>
+              <Plus size={16} /> {savingCategory ? "추가 중" : "추가"}
+            </button>
+          </form>
+          <div className="category-manager-list">
+            {categories.map((item) => (
+              <div key={item.id}>
+                <span style={{ backgroundColor: item.color }} />
+                <strong>{item.name}</strong>
+                {item.name !== "기타" && (
+                  <button
+                    onClick={() => deleteCategory(item)}
+                    aria-label={`${item.name} 카테고리 삭제`}
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
       <label className="search">
         <Search size={18} />
         <input
@@ -105,15 +191,17 @@ export function IngredientsPage({
             });
           }}
         >
-          {categories.map((item) => (
-            <button
-              className={item === category ? "active" : ""}
-              onClick={() => setCategory(item)}
-              key={item}
-            >
-              {item}
-            </button>
-          ))}
+          {["전체", "즐겨찾기", ...categories.map((item) => item.name)].map(
+            (item) => (
+              <button
+                className={item === category ? "active" : ""}
+                onClick={() => setCategory(item)}
+                key={item}
+              >
+                {item}
+              </button>
+            ),
+          )}
         </div>
         <button
           className="category-scroll next"

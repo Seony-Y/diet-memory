@@ -2,16 +2,11 @@ import { useState } from "react";
 import type { ChangeEvent, FormEvent, InputHTMLAttributes } from "react";
 import { X } from "lucide-react";
 import type { Sheet } from "../../app/types";
-import {
-  categories,
-  categoryColorPalette,
-  categoryColors,
-  stockUnits,
-} from "../ingredients/model";
+import { categoryColorPalette, stockUnits } from "../ingredients/model";
 import type { BodyRecord, BodyRecordInput } from "../body/model";
 import type { ExerciseRecord } from "../dashboard/model";
 import type { MealSummary } from "../dashboard/model";
-import type { Ingredient } from "../ingredients/model";
+import type { Ingredient, IngredientCategory } from "../ingredients/model";
 import type { ScheduleEntry, ScheduleInput } from "../schedule/model";
 import { MealForm } from "../meals/MealForm";
 import { getNutritionGoalSummary } from "../nutrition/model";
@@ -24,6 +19,7 @@ interface RecordSheetProps {
   body?: BodyRecord;
   goal: NutritionGoal;
   foods: Ingredient[];
+  categories: IngredientCategory[];
   scheduleTitle?: string;
   scheduleDate?: string;
   ingredient?: Ingredient;
@@ -49,6 +45,7 @@ export function RecordSheet({
   body,
   goal,
   foods,
+  categories,
   scheduleTitle,
   scheduleDate,
   ingredient,
@@ -85,7 +82,11 @@ export function RecordSheet({
         )}
         {sheet === "goals" && <GoalForm value={goal} save={saveGoal} />}
         {sheet === "ingredient" && (
-          <FoodForm value={ingredient} submit={addFood} />
+          <FoodForm
+            value={ingredient}
+            categories={categories}
+            submit={addFood}
+          />
         )}
         {sheet === "water" && <WaterForm value={water} save={saveWater} />}
         {sheet === "exercise" && (
@@ -281,16 +282,18 @@ function GoalForm({
 
 function FoodForm({
   value,
+  categories,
   submit,
 }: {
   value?: Ingredient;
+  categories: IngredientCategory[];
   submit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   const [selectedCategory, setSelectedCategory] = useState(
-    value?.category ?? categories[2],
+    value?.category ?? categories[0]?.name ?? "기타",
   );
   const [categoryColor, setCategoryColor] = useState(
-    value?.categoryColor ?? categoryColors[selectedCategory],
+    value?.categoryColor ?? categories[0]?.color ?? categoryColorPalette[0],
   );
 
   return (
@@ -313,35 +316,23 @@ function FoodForm({
           <SelectField
             name="category"
             value={selectedCategory}
-            options={categories.slice(2)}
+            options={categories.map((category) => category.name)}
             ariaLabel="카테고리"
             onChange={(nextCategory) => {
               setSelectedCategory(nextCategory);
-              setCategoryColor(categoryColors[nextCategory]);
+              setCategoryColor(
+                categories.find((category) => category.name === nextCategory)
+                  ?.color ?? categoryColorPalette[0],
+              );
             }}
           />
         </label>
-        <div className="category-color-field wide">
-          <span>카테고리 색상</span>
-          <div className="category-color-picker">
-            {categoryColorPalette.map((color) => (
-              <button
-                type="button"
-                className={categoryColor === color ? "active" : ""}
-                style={{ backgroundColor: color }}
-                onClick={() => setCategoryColor(color)}
-                aria-label={`${color} 색상 선택`}
-                key={color}
-              />
-            ))}
-            <input
-              type="hidden"
-              name="categoryColor"
-              value={categoryColor}
-              readOnly
-            />
-          </div>
-        </div>
+        <input
+          type="hidden"
+          name="categoryColor"
+          value={categoryColor}
+          readOnly
+        />
         <label>
           <span>영양 기준 단위</span>
           <SelectField
@@ -515,6 +506,12 @@ function QuickForm({
   schedule?: ScheduleEntry;
   save: (schedule: ScheduleInput) => void;
 }) {
+  const [timeMode, setTimeMode] = useState<"all-day" | "time">(
+    schedule?.scheduledTime ? "time" : "all-day",
+  );
+  const [scheduledTime, setScheduledTime] = useState(
+    schedule?.scheduledTime ?? "09:00",
+  );
   const copy = {
     schedule: ["일정 추가", "확정 여부와 날짜를 기록하세요."],
     "schedule-edit": ["일정 수정", "선택한 일정의 내용을 수정하세요."],
@@ -527,6 +524,7 @@ function QuickForm({
         save({
           title: String(form.get("memo")),
           scheduledOn: String(form.get("value")),
+          scheduledTime: timeMode === "time" ? scheduledTime : undefined,
         });
       }}
     >
@@ -547,15 +545,52 @@ function QuickForm({
           required
           wide
         />
-        <Field
-          label="날짜 *"
-          name="value"
-          type="date"
-          defaultValue={
-            type === "schedule-edit" ? schedule?.scheduledOn : scheduleDate
-          }
-          required
-        />
+        <div className="schedule-time-field wide">
+          <span>일정 유형</span>
+          <div className="schedule-time-controls">
+            <div className="schedule-time-mode" aria-label="일정 시간 유형">
+              <button
+                type="button"
+                className={timeMode === "all-day" ? "active" : ""}
+                onClick={() => setTimeMode("all-day")}
+              >
+                종일
+              </button>
+              <button
+                type="button"
+                className={timeMode === "time" ? "active" : ""}
+                onClick={() => setTimeMode("time")}
+              >
+                시간
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="schedule-date-time-row wide">
+          <Field
+            label="날짜 *"
+            name="value"
+            type="date"
+            defaultValue={
+              type === "schedule-edit" ? schedule?.scheduledOn : scheduleDate
+            }
+            required
+          />
+          <label>
+            <span>시간</span>
+            {timeMode === "time" ? (
+              <input
+                type="time"
+                value={scheduledTime}
+                onChange={(event) => setScheduledTime(event.target.value)}
+                aria-label="일정 시간"
+                required
+              />
+            ) : (
+              <span className="schedule-all-day">종일</span>
+            )}
+          </label>
+        </div>
       </div>
       <Submit label={type === "schedule-edit" ? "수정 저장" : "기록 저장"} />
     </form>

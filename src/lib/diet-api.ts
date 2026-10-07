@@ -5,7 +5,10 @@ import type {
   MealKind,
   MealSummary,
 } from "../features/dashboard/model";
-import type { Ingredient } from "../features/ingredients/model";
+import type {
+  Ingredient,
+  IngredientCategory,
+} from "../features/ingredients/model";
 import type { NutritionGoal } from "../features/nutrition/model";
 import type { ScheduleEntry, ScheduleInput } from "../features/schedule/model";
 import { neon } from "./neon";
@@ -21,6 +24,7 @@ interface CategoryRow {
   id: string;
   name: string;
   color_hex: string;
+  is_default: boolean;
 }
 
 interface IngredientRow {
@@ -80,6 +84,7 @@ interface ScheduleRow {
 
 export interface DietData {
   goal: NutritionGoal;
+  categories: IngredientCategory[];
   foods: Ingredient[];
   bodyRecords: BodyRecord[];
   water: number;
@@ -112,6 +117,32 @@ const mealTone: Record<MealKind, string> = {
   점심: "blue",
   저녁: "coral",
   간식: "yellow",
+};
+
+const scheduleMemoPrefix = "@diet-memory:1:";
+
+const encodeScheduleMemo = (input: ScheduleInput) =>
+  `${scheduleMemoPrefix}${JSON.stringify({
+    title: input.title,
+    time: input.scheduledTime ?? null,
+  })}`;
+
+const decodeScheduleMemo = (memo: string) => {
+  if (!memo.startsWith(scheduleMemoPrefix)) {
+    return { title: memo, scheduledTime: undefined };
+  }
+  try {
+    const value = JSON.parse(memo.slice(scheduleMemoPrefix.length)) as {
+      title?: unknown;
+      time?: unknown;
+    };
+    return {
+      title: typeof value.title === "string" ? value.title : memo,
+      scheduledTime: typeof value.time === "string" ? value.time : undefined,
+    };
+  } catch {
+    return { title: memo, scheduledTime: undefined };
+  }
 };
 
 const unitToDatabase: Record<string, string> = {
@@ -167,7 +198,11 @@ export async function loadDietData(): Promise<DietData> {
       .from("profiles")
       .select("carbs_goal_g,protein_goal_g,fat_goal_g,water_goal_ml")
       .single(),
-    client.from("categories").select("id,name,color_hex"),
+    client
+      .from("categories")
+      .select("id,name,color_hex,is_default")
+      .order("sort_order")
+      .order("created_at"),
     client
       .from("ingredients")
       .select(
@@ -242,6 +277,12 @@ export async function loadDietData(): Promise<DietData> {
       fatGrams: Number(profile.fat_goal_g),
       waterMl: profile.water_goal_ml,
     },
+    categories: categoryRows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      color: row.color_hex,
+      isDefault: row.is_default,
+    })),
     foods: ingredientRows.map((row) => {
       const category = row.category_id
         ? categoryMap.get(row.category_id)
@@ -287,14 +328,18 @@ export async function loadDietData(): Promise<DietData> {
       recordedOn,
       calories,
     })),
-    schedules: scheduleRows.map((row) => ({
-      id: row.id,
-      scheduledOn: row.scheduled_on ?? "",
-      status: row.status === "confirmed" ? "확정" : "미확정",
-      title: row.memo,
-      detail: row.minimum_downtime ? `다운타임 ${row.minimum_downtime}` : "",
-      pending: row.status === "tentative",
-    })),
+    schedules: scheduleRows.map((row) => {
+      const memo = decodeScheduleMemo(row.memo);
+      return {
+        id: row.id,
+        scheduledOn: row.scheduled_on ?? "",
+        scheduledTime: memo.scheduledTime,
+        status: row.status === "confirmed" ? "확정" : "미확정",
+        title: memo.title,
+        detail: row.minimum_downtime ? `다운타임 ${row.minimum_downtime}` : "",
+        pending: row.status === "tentative",
+      };
+    }),
   };
 }
 
@@ -490,6 +535,51 @@ export async function addIngredient(input: IngredientInput) {
   };
 }
 
+export async function addIngredientCategory(
+  name: string,
+  color: string,
+): Promise<IngredientCategory> {
+  const { data, error } = await requireNeon()
+    .from("categories")
+    .insert({ name, color_hex: color, is_default: false, sort_order: 1000 })
+    .select("id,name,color_hex,is_default")
+    .single();
+  throwIfError(error);
+  const row = requireData(
+    data as CategoryRow | null,
+    "카테고리 정보를 받지 못했습니다.",
+  );
+  return {
+    id: row.id,
+    name: row.name,
+    color: row.color_hex,
+    isDefault: row.is_default,
+  };
+}
+
+export async function deleteIngredientCategory(id: string) {
+  const client = requireNeon();
+  const fallback = await client
+    .from("categories")
+    .select("id")
+    .eq("name", "기타")
+    .single();
+  throwIfError(fallback.error);
+  const fallbackId = requireData(
+    fallback.data,
+    "기본 카테고리를 찾지 못했습니다.",
+  ).id;
+
+  const reassigned = await client
+    .from("ingredients")
+    .update({ category_id: fallbackId })
+    .eq("category_id", id);
+  throwIfError(reassigned.error);
+
+  const { error } = await client.from("categories").delete().eq("id", id);
+  throwIfError(error);
+}
+
 export async function updateIngredient(
   id: number | string,
   input: IngredientInput,
@@ -627,7 +717,7 @@ export async function deleteMealRecord(id: string) {
 export async function saveScheduleRecord(input: ScheduleInput, id?: string) {
   const client = requireNeon();
   const row = {
-    memo: input.title,
+    memo: encodeScheduleMemo(input),
     scheduled_on: input.scheduledOn,
     updated_at: new Date().toISOString(),
   };

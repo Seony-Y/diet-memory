@@ -1,43 +1,50 @@
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import {
+  addMonths,
+  format,
+  getDate,
+  getDay,
+  getDaysInMonth,
+  isSameMonth,
+  parseISO,
+  startOfMonth,
+} from "date-fns";
+import { ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import type { Sheet } from "../../app/types";
 import { PageTitle, SectionTitle } from "../../shared/ui";
-
-interface ScheduleEntry {
-  day: string;
-  status: string;
-  title: string;
-  detail: string;
-  pending?: boolean;
-}
-
-const schedules: ScheduleEntry[] = [
-  {
-    day: "18",
-    status: "확정",
-    title: "피부 관리 예약",
-    detail: "다음 주기 · 1개월 후",
-  },
-  {
-    day: "25",
-    status: "미확정",
-    title: "레이저 시술 검토",
-    detail: "최소 다운타임 · 1주",
-    pending: true,
-  },
-];
+import type { ScheduleEntry } from "./model";
 
 export function SchedulePage({
+  schedules,
   openSheet,
   editSchedule,
+  deleteSchedule,
 }: {
+  schedules: ScheduleEntry[];
   openSheet: (sheet: Sheet) => void;
-  editSchedule: (title: string) => void;
+  editSchedule: (schedule: ScheduleEntry) => void;
+  deleteSchedule: (schedule: ScheduleEntry) => void;
 }) {
-  const [selectedDay, setSelectedDay] = useState(7);
-  const selectedSchedules = schedules.filter(
-    (schedule) => Number(schedule.day) === selectedDay,
+  const today = new Date();
+  const [visibleMonth, setVisibleMonth] = useState(startOfMonth(today));
+  const [selectedDay, setSelectedDay] = useState(getDate(today));
+  const monthSchedules = schedules.filter(
+    (schedule) =>
+      schedule.scheduledOn &&
+      isSameMonth(parseISO(schedule.scheduledOn), visibleMonth),
   );
+  const selectedSchedules = monthSchedules.filter(
+    (schedule) => getDate(parseISO(schedule.scheduledOn)) === selectedDay,
+  );
+  const leadingDays = getDay(visibleMonth);
+  const daysInMonth = getDaysInMonth(visibleMonth);
+  const calendarCells = Math.ceil((leadingDays + daysInMonth) / 7) * 7;
+
+  const moveMonth = (offset: number) => {
+    const nextMonth = addMonths(visibleMonth, offset);
+    setVisibleMonth(nextMonth);
+    setSelectedDay(isSameMonth(today, nextMonth) ? getDate(today) : 1);
+  };
 
   return (
     <>
@@ -52,11 +59,11 @@ export function SchedulePage({
       </PageTitle>
       <section className="calendar">
         <div className="calendar-head">
-          <button aria-label="이전 달">
+          <button onClick={() => moveMonth(-1)} aria-label="이전 달">
             <ChevronLeft size={17} />
           </button>
-          <b>2026년 10월</b>
-          <button aria-label="다음 달">
+          <b>{format(visibleMonth, "yyyy년 M월")}</b>
+          <button onClick={() => moveMonth(1)} aria-label="다음 달">
             <ChevronRight size={17} />
           </button>
         </div>
@@ -66,12 +73,16 @@ export function SchedulePage({
           ))}
         </div>
         <div className="days">
-          {Array.from({ length: 35 }, (_, index) => {
-            const day = index - 3;
-            const isValidDay = day > 0 && day <= 31;
+          {Array.from({ length: calendarCells }, (_, index) => {
+            const day = index - leadingDays + 1;
+            const isValidDay = day > 0 && day <= daysInMonth;
+            const isToday =
+              isSameMonth(today, visibleMonth) && day === getDate(today);
             const className = [
-              day === 7 ? "today" : "",
-              schedules.some((schedule) => Number(schedule.day) === day)
+              isToday ? "today" : "",
+              monthSchedules.some(
+                (schedule) => getDate(parseISO(schedule.scheduledOn)) === day,
+              )
                 ? "marked"
                 : "",
               day === selectedDay ? "selected" : "",
@@ -83,7 +94,11 @@ export function SchedulePage({
                 className={className}
                 onClick={() => isValidDay && setSelectedDay(day)}
                 disabled={!isValidDay}
-                aria-label={isValidDay ? `10월 ${day}일` : undefined}
+                aria-label={
+                  isValidDay
+                    ? `${format(visibleMonth, "M월")} ${day}일`
+                    : undefined
+                }
                 key={index}
               >
                 {isValidDay ? day : ""}
@@ -95,15 +110,18 @@ export function SchedulePage({
       <section className="selected-day-schedule">
         <header>
           <span>SELECTED DATE</span>
-          <h2>10월 {selectedDay}일 일정</h2>
+          <h2>
+            {format(visibleMonth, "M월")} {selectedDay}일 일정
+          </h2>
         </header>
         {selectedSchedules.length ? (
           <div className="schedule-list">
             {selectedSchedules.map((schedule) => (
               <ScheduleItem
-                {...schedule}
+                schedule={schedule}
                 onEdit={editSchedule}
-                key={schedule.title}
+                onDelete={deleteSchedule}
+                key={schedule.id}
               />
             ))}
           </div>
@@ -111,53 +129,62 @@ export function SchedulePage({
           <p>등록된 일정이 없어요.</p>
         )}
       </section>
-      <SectionTitle eyebrow="UPCOMING" title="다가오는 일정" />
+      <SectionTitle eyebrow="UPCOMING" title="등록된 일정" />
       <div className="schedule-list">
-        {schedules.map((schedule) => (
-          <ScheduleItem
-            {...schedule}
-            onEdit={editSchedule}
-            key={schedule.title}
-          />
-        ))}
+        {schedules.length ? (
+          schedules.map((schedule) => (
+            <ScheduleItem
+              schedule={schedule}
+              onEdit={editSchedule}
+              onDelete={deleteSchedule}
+              key={schedule.id}
+            />
+          ))
+        ) : (
+          <p className="empty-records">아직 등록한 일정이 없어요.</p>
+        )}
       </div>
     </>
   );
 }
 
 function ScheduleItem({
-  day,
-  status,
-  title,
-  detail,
-  pending = false,
+  schedule,
   onEdit,
+  onDelete,
 }: {
-  day: string;
-  status: string;
-  title: string;
-  detail: string;
-  pending?: boolean;
-  onEdit: (title: string) => void;
+  schedule: ScheduleEntry;
+  onEdit: (schedule: ScheduleEntry) => void;
+  onDelete: (schedule: ScheduleEntry) => void;
 }) {
+  const date = schedule.scheduledOn ? parseISO(schedule.scheduledOn) : null;
   return (
     <article>
-      <div className={`schedule-date ${pending ? "pending" : ""}`}>
-        <strong>{day}</strong>
-        <span>OCT</span>
+      <div className={`schedule-date ${schedule.pending ? "pending" : ""}`}>
+        <strong>{date ? format(date, "d") : "?"}</strong>
+        <span>{date ? format(date, "MMM").toUpperCase() : "TBD"}</span>
       </div>
       <div>
-        <em>{status}</em>
-        <h3>{title}</h3>
-        <p>{detail}</p>
+        <em>{schedule.status}</em>
+        <h3>{schedule.title}</h3>
+        {schedule.detail && <p>{schedule.detail}</p>}
       </div>
-      <button
-        className="schedule-edit"
-        onClick={() => onEdit(title)}
-        aria-label={`${title} 일정 수정`}
-      >
-        <ChevronRight size={18} />
-      </button>
+      <div className="record-actions">
+        <button
+          className="schedule-edit"
+          onClick={() => onEdit(schedule)}
+          aria-label={`${schedule.title} 일정 수정`}
+        >
+          <Pencil size={15} />
+        </button>
+        <button
+          className="schedule-edit delete-action"
+          onClick={() => onDelete(schedule)}
+          aria-label={`${schedule.title} 일정 삭제`}
+        >
+          <Trash2 size={15} />
+        </button>
+      </div>
     </article>
   );
 }

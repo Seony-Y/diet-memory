@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { ChevronLeft, ChevronRight, Heart, Plus, Search } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Heart,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
 import type { Sheet } from "../../app/types";
 import { categories } from "./model";
 import type { Ingredient } from "./model";
@@ -14,6 +22,8 @@ interface IngredientsPageProps {
   setSearch: (value: string) => void;
   openSheet: (sheet: Sheet) => void;
   toggleFavorite: (id: number | string) => void;
+  editFood: (food: Ingredient) => void;
+  deleteFood: (food: Ingredient) => void;
 }
 
 export function IngredientsPage({
@@ -24,6 +34,8 @@ export function IngredientsPage({
   setSearch,
   openSheet,
   toggleFavorite,
+  editFood,
+  deleteFood,
 }: IngredientsPageProps) {
   const categoryList = useRef<HTMLDivElement>(null);
   const [categoryScroll, setCategoryScroll] = useState({
@@ -149,13 +161,31 @@ export function IngredientsPage({
                 <span>지 {food.fat}g</span>
               </p>
             </div>
-            <button
-              className="food-favorite"
-              onClick={() => toggleFavorite(food.id)}
-              aria-label={`${food.name} 즐겨찾기`}
-            >
-              <Heart size={15} fill={food.favorite ? "currentColor" : "none"} />
-            </button>
+            <div className="food-actions">
+              <button
+                className="food-favorite"
+                onClick={() => toggleFavorite(food.id)}
+                aria-label={`${food.name} 즐겨찾기`}
+              >
+                <Heart
+                  size={15}
+                  fill={food.favorite ? "currentColor" : "none"}
+                />
+              </button>
+              <button
+                onClick={() => editFood(food)}
+                aria-label={`${food.name} 수정`}
+              >
+                <Pencil size={14} />
+              </button>
+              <button
+                className="delete-action"
+                onClick={() => deleteFood(food)}
+                aria-label={`${food.name} 삭제`}
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
           </article>
         ))}
       </div>

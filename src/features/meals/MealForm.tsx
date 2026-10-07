@@ -24,16 +24,33 @@ const mealTones: Record<MealKind, string> = {
 const roundNutrition = (value: number) => Math.round(value * 10) / 10;
 
 export function MealForm({
+  value,
   foods,
   save,
 }: {
+  value?: MealSummary;
   foods: Ingredient[];
   save: (meal: MealSummary) => void;
 }) {
-  const [kind, setKind] = useState<MealKind>("아침");
-  const [time, setTime] = useState(new Date().toTimeString().slice(0, 5));
+  const [kind, setKind] = useState<MealKind>(value?.kind ?? "아침");
+  const [time, setTime] = useState(
+    value?.time ?? new Date().toTimeString().slice(0, 5),
+  );
   const [query, setQuery] = useState("");
-  const [selectedFoods, setSelectedFoods] = useState<SelectedMealFood[]>([]);
+  const [selectedFoods, setSelectedFoods] = useState<SelectedMealFood[]>(() =>
+    value
+      ? [
+          {
+            key: `meal-${value.id ?? value.kind}`,
+            name: value.items,
+            calories: value.calories,
+            carbs: value.carbs,
+            protein: value.protein,
+            fat: value.fat,
+          },
+        ]
+      : [],
+  );
   const searchResults = foods
     .filter((food) => food.name.includes(query.trim()))
     .slice(0, 6);
@@ -103,6 +120,7 @@ export function MealForm({
         event.preventDefault();
         if (!selectedFoods.length) return;
         save({
+          id: value?.id,
           kind,
           time,
           items: selectedFoods.map((food) => food.name).join(", "),
@@ -115,8 +133,8 @@ export function MealForm({
       }}
     >
       <header className="form-head">
-        <span>MEAL BUILDER</span>
-        <h2>식단 추가</h2>
+        <span>{value ? "EDIT MEAL" : "MEAL BUILDER"}</span>
+        <h2>{value ? "식단 수정" : "식단 추가"}</h2>
         <p>여러 음식을 담고 영양정보를 확인한 뒤 끼니에 등록하세요.</p>
       </header>
 

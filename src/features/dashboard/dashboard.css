@@ -376,6 +376,11 @@
   font-weight: 700;
 }
 
+.exercise-records article > .record-actions {
+  flex-direction: row;
+  gap: 6px;
+}
+
 @media (max-width: 640px) {
   .statistics-period {
     align-items: flex-end;

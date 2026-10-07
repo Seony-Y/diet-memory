@@ -6,7 +6,9 @@ import {
   Droplets,
   Dumbbell,
   Plus,
+  Pencil,
   Settings2,
+  Trash2,
   Utensils,
   Weight,
 } from "lucide-react";
@@ -27,6 +29,11 @@ interface TodayPageProps {
   exercises: ExerciseRecord[];
   openSheet: (sheet: Sheet) => void;
   addWater: (amount: number) => void;
+  resetWater: () => void;
+  editMeal: (meal: MealSummary) => void;
+  deleteMeal: (meal: MealSummary) => void;
+  editExercise: (exercise: ExerciseRecord) => void;
+  deleteExercise: (exercise: ExerciseRecord) => void;
 }
 
 export function TodayPage({
@@ -39,6 +46,11 @@ export function TodayPage({
   exercises,
   openSheet,
   addWater,
+  resetWater,
+  editMeal,
+  deleteMeal,
+  editExercise,
+  deleteExercise,
 }: TodayPageProps) {
   const [selectedMeal, setSelectedMeal] = useState<string>();
   const goalSummary = getNutritionGoalSummary(goal);
@@ -181,12 +193,21 @@ export function TodayPage({
                       <small>{meal.calories ? "kcal" : ""}</small>
                     </strong>
                   </button>
-                  <button
-                    onClick={() => openSheet("meal")}
-                    aria-label={`${meal.kind} 추가`}
-                  >
-                    <Plus size={16} />
-                  </button>
+                  <div className="record-actions">
+                    <button
+                      onClick={() => editMeal(meal)}
+                      aria-label={`${meal.kind} 식단 수정`}
+                    >
+                      <Pencil size={15} />
+                    </button>
+                    <button
+                      className="delete-action"
+                      onClick={() => deleteMeal(meal)}
+                      aria-label={`${meal.kind} 식단 삭제`}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
                 </article>
                 {isSelected && (
                   <section
@@ -248,6 +269,16 @@ export function TodayPage({
                 +{amount}
               </button>
             ))}
+            {water > 0 && (
+              <button
+                className="delete-action"
+                onClick={resetWater}
+                aria-label="오늘 물 기록 초기화"
+                title="오늘 기록 초기화"
+              >
+                <Trash2 size={14} />
+              </button>
+            )}
           </div>
         </MetricCard>
         <MetricCard
@@ -298,6 +329,21 @@ export function TodayPage({
                       ? "칼로리 미입력"
                       : `${exercise.caloriesBurned.toLocaleString()} kcal`}
                   </strong>
+                  <div className="record-actions">
+                    <button
+                      onClick={() => editExercise(exercise)}
+                      aria-label={`${exercise.name} 운동 수정`}
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      className="delete-action"
+                      onClick={() => deleteExercise(exercise)}
+                      aria-label={`${exercise.name} 운동 삭제`}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </article>
               ))
             ) : (

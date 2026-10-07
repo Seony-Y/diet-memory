@@ -7,6 +7,7 @@ import type {
 } from "../features/dashboard/model";
 import type { Ingredient } from "../features/ingredients/model";
 import type { NutritionGoal } from "../features/nutrition/model";
+import type { ScheduleEntry, ScheduleInput } from "../features/schedule/model";
 import { neon } from "./neon";
 
 interface ProfileRow {
@@ -69,6 +70,14 @@ interface MealRow {
   meal_items: MealItemRow[];
 }
 
+interface ScheduleRow {
+  id: string;
+  status: "confirmed" | "tentative";
+  memo: string;
+  scheduled_on: string | null;
+  minimum_downtime: string | null;
+}
+
 export interface DietData {
   goal: NutritionGoal;
   foods: Ingredient[];
@@ -77,6 +86,7 @@ export interface DietData {
   exercises: ExerciseRecord[];
   meals: MealSummary[];
   calorieHistory: Array<{ recordedOn: string; calories: number }>;
+  schedules: ScheduleEntry[];
 }
 
 export interface IngredientInput extends Omit<Ingredient, "id" | "favorite"> {
@@ -151,6 +161,7 @@ export async function loadDietData(): Promise<DietData> {
     waterResult,
     exerciseResult,
     mealResult,
+    scheduleResult,
   ] = await Promise.all([
     client
       .from("profiles")
@@ -185,6 +196,10 @@ export async function loadDietData(): Promise<DietData> {
         "id,eaten_on,kind,eaten_at,meal_items(name_snapshot,calories,carbohydrates_g,protein_g,fat_g)",
       )
       .order("eaten_on"),
+    client
+      .from("schedules")
+      .select("id,status,memo,scheduled_on,minimum_downtime")
+      .order("scheduled_on"),
   ]);
 
   [
@@ -195,6 +210,7 @@ export async function loadDietData(): Promise<DietData> {
     waterResult,
     exerciseResult,
     mealResult,
+    scheduleResult,
   ].forEach((result) => throwIfError(result.error));
 
   const profile = profileResult.data as ProfileRow;
@@ -204,6 +220,7 @@ export async function loadDietData(): Promise<DietData> {
   const bodyRows = (bodyResult.data ?? []) as BodyRecordRow[];
   const exerciseRows = (exerciseResult.data ?? []) as ExerciseRow[];
   const mealRows = (mealResult.data ?? []) as MealRow[];
+  const scheduleRows = (scheduleResult.data ?? []) as ScheduleRow[];
 
   const mealSummaries = mealRows.map(toMealSummary);
   const caloriesByDate = new Map<string, number>();
@@ -270,12 +287,21 @@ export async function loadDietData(): Promise<DietData> {
       recordedOn,
       calories,
     })),
+    schedules: scheduleRows.map((row) => ({
+      id: row.id,
+      scheduledOn: row.scheduled_on ?? "",
+      status: row.status === "confirmed" ? "확정" : "미확정",
+      title: row.memo,
+      detail: row.minimum_downtime ? `다운타임 ${row.minimum_downtime}` : "",
+      pending: row.status === "tentative",
+    })),
   };
 }
 
 function toMealSummary(row: MealRow): MealSummary {
   const kind = mealKindFromDatabase[row.kind] ?? "간식";
   return {
+    id: row.id,
     kind,
     time: row.eaten_at?.slice(0, 5) ?? "기록 전",
     items: row.meal_items.map((item) => item.name_snapshot).join(", "),
@@ -335,10 +361,29 @@ export async function saveBodyRecord(input: BodyRecordInput) {
   throwIfError(result.error);
 }
 
+export async function deleteTodayBodyRecord() {
+  const { error } = await requireNeon()
+    .from("body_records")
+    .delete()
+    .eq("recorded_on", format(new Date(), "yyyy-MM-dd"));
+  throwIfError(error);
+}
+
 export async function addWaterRecord(amountMl: number) {
   const { error } = await requireNeon()
     .from("water_records")
     .insert({ amount_ml: amountMl });
+  throwIfError(error);
+}
+
+export async function deleteTodayWaterRecords() {
+  const dayStart = startOfDay(new Date()).toISOString();
+  const dayEnd = addDays(startOfDay(new Date()), 1).toISOString();
+  const { error } = await requireNeon()
+    .from("water_records")
+    .delete()
+    .gte("consumed_at", dayStart)
+    .lt("consumed_at", dayEnd);
   throwIfError(error);
 }
 
@@ -355,6 +400,26 @@ export async function addExerciseRecord(exercise: Omit<ExerciseRecord, "id">) {
     .single();
   throwIfError(error);
   return String(requireData(data, "운동 기록 ID를 받지 못했습니다.").id);
+}
+
+export async function updateExerciseRecord(exercise: ExerciseRecord) {
+  const { error } = await requireNeon()
+    .from("exercise_records")
+    .update({
+      name: exercise.name,
+      duration_minutes: exercise.durationMinutes,
+      calories_burned: exercise.caloriesBurned ?? null,
+    })
+    .eq("id", exercise.id);
+  throwIfError(error);
+}
+
+export async function deleteExerciseRecord(id: number | string) {
+  const { error } = await requireNeon()
+    .from("exercise_records")
+    .delete()
+    .eq("id", id);
+  throwIfError(error);
 }
 
 export async function addIngredient(input: IngredientInput) {
@@ -395,6 +460,54 @@ export async function addIngredient(input: IngredientInput) {
   };
 }
 
+export async function updateIngredient(
+  id: number | string,
+  input: IngredientInput,
+) {
+  const client = requireNeon();
+  const category = await client
+    .from("categories")
+    .select("id")
+    .eq("name", input.category)
+    .single();
+  throwIfError(category.error);
+  const categoryData = requireData(
+    category.data,
+    "재료 카테고리를 찾지 못했습니다.",
+  );
+  const { error } = await client
+    .from("ingredients")
+    .update({
+      category_id: categoryData.id,
+      name: input.name,
+      base_amount: input.amount,
+      unit: unitToDatabase[input.unit] ?? "g",
+      stock_amount: input.stockAmount,
+      stock_unit: unitToDatabase[input.stockUnit] ?? "g",
+      calories: input.calories,
+      carbohydrates_g: input.carbs,
+      protein_g: input.protein,
+      fat_g: input.fat,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+  throwIfError(error);
+  return { ...input, id, favorite: input.favorite ?? false };
+}
+
+export async function deleteIngredient(id: number | string) {
+  const { error } = await requireNeon()
+    .from("ingredients")
+    .delete()
+    .eq("id", id);
+  if (error) {
+    if (error.message.toLowerCase().includes("foreign key")) {
+      throw new Error("메뉴에서 사용 중인 재료는 삭제할 수 없습니다.");
+    }
+    throw new Error(error.message);
+  }
+}
+
 export async function setIngredientFavorite(
   id: number | string,
   favorite: boolean,
@@ -410,25 +523,43 @@ export async function saveMealRecord(meal: MealSummary) {
   const client = requireNeon();
   const eatenOn = format(new Date(), "yyyy-MM-dd");
   const kind = mealKindToDatabase[meal.kind];
-  const existing = await client
-    .from("meals")
-    .select("id")
-    .eq("eaten_on", eatenOn)
-    .eq("kind", kind)
-    .maybeSingle();
+  if (meal.id) {
+    const conflict = await client
+      .from("meals")
+      .select("id")
+      .eq("eaten_on", eatenOn)
+      .eq("kind", kind)
+      .neq("id", meal.id)
+      .maybeSingle();
+    throwIfError(conflict.error);
+    if (conflict.data) {
+      throw new Error(`오늘 ${meal.kind} 식단이 이미 등록되어 있습니다.`);
+    }
+  }
+  const existing = meal.id
+    ? { data: { id: meal.id }, error: null }
+    : await client
+        .from("meals")
+        .select("id")
+        .eq("eaten_on", eatenOn)
+        .eq("kind", kind)
+        .maybeSingle();
   throwIfError(existing.error);
 
   let mealId: string;
+  let existingItemId: string | undefined;
   if (existing.data) {
     mealId = String(existing.data.id);
-    const clearItems = await client
+    const existingItems = await client
       .from("meal_items")
-      .delete()
-      .eq("meal_id", mealId);
-    throwIfError(clearItems.error);
+      .select("id")
+      .eq("meal_id", mealId)
+      .limit(1);
+    throwIfError(existingItems.error);
+    existingItemId = String(existingItems.data?.[0]?.id ?? "") || undefined;
     const updateMeal = await client
       .from("meals")
-      .update({ eaten_at: meal.time })
+      .update({ kind, eaten_at: meal.time })
       .eq("id", mealId);
     throwIfError(updateMeal.error);
   } else {
@@ -443,13 +574,52 @@ export async function saveMealRecord(meal: MealSummary) {
     );
   }
 
-  const itemResult = await client.from("meal_items").insert({
+  const itemRow = {
     meal_id: mealId,
     name_snapshot: meal.items,
     calories: meal.calories,
     carbohydrates_g: meal.carbs,
     protein_g: meal.protein,
     fat_g: meal.fat,
-  });
+  };
+  const itemResult = existingItemId
+    ? await client.from("meal_items").update(itemRow).eq("id", existingItemId)
+    : await client.from("meal_items").insert(itemRow);
   throwIfError(itemResult.error);
+  return mealId;
+}
+
+export async function deleteMealRecord(id: string) {
+  const { error } = await requireNeon().from("meals").delete().eq("id", id);
+  throwIfError(error);
+}
+
+export async function saveScheduleRecord(input: ScheduleInput, id?: string) {
+  const client = requireNeon();
+  const row = {
+    memo: input.title,
+    scheduled_on: input.scheduledOn,
+    updated_at: new Date().toISOString(),
+  };
+  if (id) {
+    const { error } = await client.from("schedules").update(row).eq("id", id);
+    throwIfError(error);
+    return id;
+  }
+  const { data, error } = await client
+    .from("schedules")
+    .insert({
+      ...row,
+      status: "confirmed",
+      minimum_downtime: null,
+    })
+    .select("id")
+    .single();
+  throwIfError(error);
+  return String(requireData(data, "일정 ID를 받지 못했습니다.").id);
+}
+
+export async function deleteScheduleRecord(id: string) {
+  const { error } = await requireNeon().from("schedules").delete().eq("id", id);
+  throwIfError(error);
 }

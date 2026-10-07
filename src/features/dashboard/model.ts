@@ -1,4 +1,5 @@
 export interface MealSummary {
+  id?: string;
   kind: MealKind;
   time: string;
   items: string;

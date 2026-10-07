@@ -12,6 +12,7 @@ import type { BodyRecord, BodyRecordInput } from "../body/model";
 import type { ExerciseRecord } from "../dashboard/model";
 import type { MealSummary } from "../dashboard/model";
 import type { Ingredient } from "../ingredients/model";
+import type { ScheduleEntry, ScheduleInput } from "../schedule/model";
 import { MealForm } from "../meals/MealForm";
 import { getNutritionGoalSummary } from "../nutrition/model";
 import type { NutritionGoal } from "../nutrition/model";
@@ -23,6 +24,10 @@ interface RecordSheetProps {
   goal: NutritionGoal;
   foods: Ingredient[];
   scheduleTitle?: string;
+  ingredient?: Ingredient;
+  exercise?: ExerciseRecord;
+  meal?: MealSummary;
+  schedule?: ScheduleEntry;
   close: () => void;
   saveBody: (value: BodyRecordInput) => void;
   saveGoal: (value: NutritionGoal) => void;
@@ -30,6 +35,8 @@ interface RecordSheetProps {
   addWater: (amount: number) => void;
   addExercise: (exercise: Omit<ExerciseRecord, "id">) => void;
   addMeal: (meal: MealSummary) => void;
+  deleteBody: () => void;
+  saveSchedule: (schedule: ScheduleInput) => void;
 }
 
 export function RecordSheet({
@@ -38,6 +45,10 @@ export function RecordSheet({
   goal,
   foods,
   scheduleTitle,
+  ingredient,
+  exercise,
+  meal,
+  schedule,
   close,
   saveBody,
   saveGoal,
@@ -45,6 +56,8 @@ export function RecordSheet({
   addWater,
   addExercise,
   addMeal,
+  deleteBody,
+  saveSchedule,
 }: RecordSheetProps) {
   const quickSheet =
     sheet === "schedule" || sheet === "schedule-edit" ? sheet : null;
@@ -59,17 +72,26 @@ export function RecordSheet({
         <button className="close" onClick={close} aria-label="닫기">
           <X size={19} />
         </button>
-        {sheet === "weight" && <WeightForm value={body} save={saveBody} />}
+        {sheet === "weight" && (
+          <WeightForm value={body} save={saveBody} remove={deleteBody} />
+        )}
         {sheet === "goals" && <GoalForm value={goal} save={saveGoal} />}
-        {sheet === "ingredient" && <FoodForm submit={addFood} />}
+        {sheet === "ingredient" && (
+          <FoodForm value={ingredient} submit={addFood} />
+        )}
         {sheet === "water" && <WaterForm save={addWater} />}
-        {sheet === "exercise" && <ExerciseForm save={addExercise} />}
-        {sheet === "meal" && <MealForm foods={foods} save={addMeal} />}
+        {sheet === "exercise" && (
+          <ExerciseForm value={exercise} save={addExercise} />
+        )}
+        {sheet === "meal" && (
+          <MealForm value={meal} foods={foods} save={addMeal} />
+        )}
         {quickSheet && (
           <QuickForm
             type={quickSheet}
             scheduleTitle={scheduleTitle}
-            close={close}
+            schedule={schedule}
+            save={saveSchedule}
           />
         )}
       </section>
@@ -80,9 +102,11 @@ export function RecordSheet({
 function WeightForm({
   value,
   save,
+  remove,
 }: {
   value?: BodyRecord;
   save: (value: BodyRecordInput) => void;
+  remove: () => void;
 }) {
   return (
     <form
@@ -147,6 +171,11 @@ function WeightForm({
         />
       </div>
       <Submit />
+      {value && (
+        <button className="delete-record" type="button" onClick={remove}>
+          오늘 기록 삭제
+        </button>
+      )}
     </form>
   );
 }
@@ -237,24 +266,34 @@ function GoalForm({
 }
 
 function FoodForm({
+  value,
   submit,
 }: {
+  value?: Ingredient;
   submit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
-  const [selectedCategory, setSelectedCategory] = useState(categories[2]);
+  const [selectedCategory, setSelectedCategory] = useState(
+    value?.category ?? categories[2],
+  );
   const [categoryColor, setCategoryColor] = useState(
-    categoryColors[selectedCategory],
+    value?.categoryColor ?? categoryColors[selectedCategory],
   );
 
   return (
     <form onSubmit={submit}>
       <FormHead
-        eyebrow="NEW INGREDIENT"
-        title="재료 등록"
+        eyebrow={value ? "EDIT INGREDIENT" : "NEW INGREDIENT"}
+        title={value ? "재료 수정" : "재료 등록"}
         description="보유 수량과 영양정보를 입력해 주세요."
       />
       <div className="form-grid">
-        <Field label="재료명 *" name="name" required wide />
+        <Field
+          label="재료명 *"
+          name="name"
+          defaultValue={value?.name}
+          required
+          wide
+        />
         <label>
           <span>카테고리</span>
           <SelectField
@@ -294,6 +333,7 @@ function FoodForm({
           <SelectField
             name="unit"
             options={["g", "ml", "개", "회분"]}
+            defaultValue={value?.unit}
             ariaLabel="영양 기준 단위"
           />
         </label>
@@ -301,7 +341,7 @@ function FoodForm({
           label="영양 기준 수량"
           name="amount"
           type="number"
-          defaultValue="100"
+          defaultValue={value?.amount ?? 100}
           required
         />
         <Field
@@ -310,6 +350,7 @@ function FoodForm({
           type="number"
           min="0"
           step="0.1"
+          defaultValue={value?.stockAmount}
           required
         />
         <label>
@@ -317,6 +358,7 @@ function FoodForm({
           <SelectField
             name="stockUnit"
             options={stockUnits}
+            defaultValue={value?.stockUnit}
             ariaLabel="보유 단위"
           />
         </label>
@@ -324,6 +366,7 @@ function FoodForm({
           label="칼로리 *"
           name="calories"
           type="number"
+          defaultValue={value?.calories}
           unit="kcal"
           required
         />
@@ -332,6 +375,7 @@ function FoodForm({
           name="carbs"
           type="number"
           step="0.1"
+          defaultValue={value?.carbs}
           unit="g"
         />
         <Field
@@ -339,9 +383,17 @@ function FoodForm({
           name="protein"
           type="number"
           step="0.1"
+          defaultValue={value?.protein}
           unit="g"
         />
-        <Field label="지방" name="fat" type="number" step="0.1" unit="g" />
+        <Field
+          label="지방"
+          name="fat"
+          type="number"
+          step="0.1"
+          defaultValue={value?.fat}
+          unit="g"
+        />
       </div>
       <Submit label="재료 저장" />
     </form>
@@ -373,8 +425,10 @@ function WaterForm({ save }: { save: (amount: number) => void }) {
 }
 
 function ExerciseForm({
+  value,
   save,
 }: {
+  value?: ExerciseRecord;
   save: (exercise: Omit<ExerciseRecord, "id">) => void;
 }) {
   return (
@@ -391,17 +445,24 @@ function ExerciseForm({
       }}
     >
       <FormHead
-        eyebrow="EXERCISE"
-        title="운동 기록"
+        eyebrow={value ? "EDIT EXERCISE" : "EXERCISE"}
+        title={value ? "운동 수정" : "운동 기록"}
         description="운동별로 시간과 소모 칼로리를 기록하세요."
       />
       <div className="form-grid">
-        <Field label="운동 종류 *" name="name" required wide />
+        <Field
+          label="운동 종류 *"
+          name="name"
+          defaultValue={value?.name}
+          required
+          wide
+        />
         <Field
           label="운동 시간 *"
           name="duration"
           type="number"
           min="1"
+          defaultValue={value?.durationMinutes}
           unit="분"
           required
         />
@@ -410,6 +471,7 @@ function ExerciseForm({
           name="calories"
           type="number"
           min="0"
+          defaultValue={value?.caloriesBurned}
           unit="kcal"
         />
       </div>
@@ -421,11 +483,13 @@ function ExerciseForm({
 function QuickForm({
   type,
   scheduleTitle,
-  close,
+  schedule,
+  save,
 }: {
   type: "schedule" | "schedule-edit";
   scheduleTitle?: string;
-  close: () => void;
+  schedule?: ScheduleEntry;
+  save: (schedule: ScheduleInput) => void;
 }) {
   const copy = {
     schedule: ["일정 추가", "확정 여부와 날짜를 기록하세요."],
@@ -435,7 +499,11 @@ function QuickForm({
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        close();
+        const form = new FormData(event.currentTarget);
+        save({
+          title: String(form.get("memo")),
+          scheduledOn: String(form.get("value")),
+        });
       }}
     >
       <FormHead
@@ -447,7 +515,11 @@ function QuickForm({
         <Field
           label="이름 또는 메모 *"
           name="memo"
-          defaultValue={type === "schedule-edit" ? scheduleTitle : undefined}
+          defaultValue={
+            type === "schedule-edit"
+              ? (schedule?.title ?? scheduleTitle)
+              : undefined
+          }
           required
           wide
         />
@@ -455,7 +527,9 @@ function QuickForm({
           label="날짜 *"
           name="value"
           type="date"
-          defaultValue={type === "schedule-edit" ? "2026-10-18" : undefined}
+          defaultValue={
+            type === "schedule-edit" ? schedule?.scheduledOn : undefined
+          }
           required
         />
       </div>

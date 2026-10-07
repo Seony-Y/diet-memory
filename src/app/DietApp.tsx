@@ -30,16 +30,26 @@ import type { Ingredient } from "../features/ingredients/model";
 import { useNutritionGoal } from "../features/nutrition/model";
 import { RecordSheet } from "../features/records/RecordSheet";
 import { SchedulePage } from "../features/schedule/SchedulePage";
+import type { ScheduleEntry, ScheduleInput } from "../features/schedule/model";
 import { NavButton } from "../shared/ui";
 import {
   addExerciseRecord,
   addIngredient,
   addWaterRecord,
+  deleteExerciseRecord,
+  deleteIngredient,
+  deleteMealRecord,
+  deleteScheduleRecord,
+  deleteTodayBodyRecord,
+  deleteTodayWaterRecords,
   loadDietData,
   saveBodyRecord as persistBodyRecord,
   saveMealRecord,
   saveNutritionGoal,
+  saveScheduleRecord,
   setIngredientFavorite,
+  updateExerciseRecord,
+  updateIngredient,
 } from "../lib/diet-api";
 import { isNeonConfigured } from "../lib/neon";
 
@@ -88,6 +98,11 @@ export default function DietApp({
   const [search, setSearch] = useState("");
   const [dataLoading, setDataLoading] = useState(isNeonConfigured);
   const [dataError, setDataError] = useState("");
+  const [editingIngredient, setEditingIngredient] = useState<Ingredient>();
+  const [editingExercise, setEditingExercise] = useState<ExerciseRecord>();
+  const [editingMeal, setEditingMeal] = useState<MealSummary>();
+  const [editingSchedule, setEditingSchedule] = useState<ScheduleEntry>();
+  const [schedules, setSchedules] = useState<ScheduleEntry[]>([]);
 
   useEffect(() => {
     globalThis.scrollTo({ top: 0, behavior: "instant" });
@@ -107,6 +122,7 @@ export default function DietApp({
         setMeals(data.meals);
         setIntake(calculateMealIntake(data.meals));
         setCalorieHistory(data.calorieHistory);
+        setSchedules(data.schedules);
       })
       .catch((error: unknown) => {
         if (active)
@@ -193,7 +209,7 @@ export default function DietApp({
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     try {
-      const food = await addIngredient({
+      const input = {
         name: String(form.get("name")),
         category: String(form.get("category")),
         categoryColor: String(form.get("categoryColor")),
@@ -205,8 +221,17 @@ export default function DietApp({
         carbs: Number(form.get("carbs")) || 0,
         protein: Number(form.get("protein")) || 0,
         fat: Number(form.get("fat")) || 0,
-      });
-      setFoods((current) => [food, ...current]);
+        favorite: editingIngredient?.favorite,
+      };
+      const food = editingIngredient
+        ? await updateIngredient(editingIngredient.id, input)
+        : await addIngredient(input);
+      setFoods((current) =>
+        editingIngredient
+          ? current.map((item) => (item.id === food.id ? food : item))
+          : [food, ...current],
+      );
+      setEditingIngredient(undefined);
       setSheet(null);
     } catch (error) {
       setDataError(
@@ -217,8 +242,19 @@ export default function DietApp({
 
   const addExercise = async (exercise: Omit<ExerciseRecord, "id">) => {
     try {
-      const id = await addExerciseRecord(exercise);
-      setExercises((current) => [{ id, ...exercise }, ...current]);
+      if (editingExercise) {
+        const updated = { ...exercise, id: editingExercise.id };
+        await updateExerciseRecord(updated);
+        setExercises((current) =>
+          current.map((item) =>
+            item.id === editingExercise.id ? updated : item,
+          ),
+        );
+      } else {
+        const id = await addExerciseRecord(exercise);
+        setExercises((current) => [{ id, ...exercise }, ...current]);
+      }
+      setEditingExercise(undefined);
       setSheet(null);
     } catch (error) {
       setDataError(
@@ -229,16 +265,19 @@ export default function DietApp({
 
   const addMeal = async (meal: MealSummary) => {
     try {
-      await saveMealRecord(meal);
+      const id = await saveMealRecord(meal);
+      const savedMeal = { ...meal, id };
       setMeals((current) => {
-        const existingIndex = current.findIndex(
-          (item) => item.kind === meal.kind,
+        const existingIndex = current.findIndex((item) =>
+          editingMeal?.id
+            ? item.id === editingMeal.id
+            : item.kind === savedMeal.kind,
         );
         const next =
           existingIndex === -1
-            ? [...current, meal]
+            ? [...current, savedMeal]
             : current.map((item, index) =>
-                index === existingIndex ? meal : item,
+                index === existingIndex ? savedMeal : item,
               );
         const nextIntake = calculateMealIntake(next);
         setIntake(nextIntake);
@@ -254,10 +293,128 @@ export default function DietApp({
         });
         return next;
       });
+      setEditingMeal(undefined);
       setSheet(null);
     } catch (error) {
       setDataError(
         error instanceof Error ? error.message : "저장에 실패했습니다.",
+      );
+    }
+  };
+
+  const closeSheet = () => {
+    setSheet(null);
+    setEditingIngredient(undefined);
+    setEditingExercise(undefined);
+    setEditingMeal(undefined);
+    setEditingSchedule(undefined);
+  };
+
+  const removeIngredient = async (food: Ingredient) => {
+    if (!globalThis.confirm(`${food.name} 재료를 삭제할까요?`)) return;
+    try {
+      await deleteIngredient(food.id);
+      setFoods((current) => current.filter((item) => item.id !== food.id));
+    } catch (error) {
+      setDataError(
+        error instanceof Error ? error.message : "삭제에 실패했습니다.",
+      );
+    }
+  };
+
+  const removeExercise = async (exercise: ExerciseRecord) => {
+    if (!globalThis.confirm(`${exercise.name} 운동 기록을 삭제할까요?`)) return;
+    try {
+      await deleteExerciseRecord(exercise.id);
+      setExercises((current) =>
+        current.filter((item) => item.id !== exercise.id),
+      );
+    } catch (error) {
+      setDataError(
+        error instanceof Error ? error.message : "삭제에 실패했습니다.",
+      );
+    }
+  };
+
+  const removeMeal = async (meal: MealSummary) => {
+    if (!meal.id || !globalThis.confirm(`${meal.kind} 식단을 삭제할까요?`))
+      return;
+    try {
+      await deleteMealRecord(meal.id);
+      setMeals((current) => {
+        const next = current.filter((item) => item.id !== meal.id);
+        setIntake(calculateMealIntake(next));
+        return next;
+      });
+    } catch (error) {
+      setDataError(
+        error instanceof Error ? error.message : "삭제에 실패했습니다.",
+      );
+    }
+  };
+
+  const removeTodayBody = async () => {
+    if (!globalThis.confirm("오늘의 몸 상태 기록을 삭제할까요?")) return;
+    try {
+      await deleteTodayBodyRecord();
+      const today = format(new Date(), "yyyy-MM-dd");
+      setBodyRecords((current) =>
+        current.filter((record) => record.recordedOn !== today),
+      );
+      closeSheet();
+    } catch (error) {
+      setDataError(
+        error instanceof Error ? error.message : "삭제에 실패했습니다.",
+      );
+    }
+  };
+
+  const resetTodayWater = async () => {
+    if (!globalThis.confirm("오늘의 물 섭취 기록을 모두 삭제할까요?")) return;
+    try {
+      await deleteTodayWaterRecords();
+      setWater(0);
+    } catch (error) {
+      setDataError(
+        error instanceof Error ? error.message : "삭제에 실패했습니다.",
+      );
+    }
+  };
+
+  const saveSchedule = async (input: ScheduleInput) => {
+    try {
+      const id = await saveScheduleRecord(input, editingSchedule?.id);
+      const saved: ScheduleEntry = {
+        id,
+        scheduledOn: input.scheduledOn,
+        status: editingSchedule?.status ?? "확정",
+        title: input.title,
+        detail: editingSchedule?.detail ?? "",
+        pending: editingSchedule?.pending ?? false,
+      };
+      setSchedules((current) =>
+        editingSchedule
+          ? current.map((item) => (item.id === id ? saved : item))
+          : [...current, saved],
+      );
+      closeSheet();
+    } catch (error) {
+      setDataError(
+        error instanceof Error ? error.message : "저장에 실패했습니다.",
+      );
+    }
+  };
+
+  const removeSchedule = async (schedule: ScheduleEntry) => {
+    if (!globalThis.confirm(`${schedule.title} 일정을 삭제할까요?`)) return;
+    try {
+      await deleteScheduleRecord(schedule.id);
+      setSchedules((current) =>
+        current.filter((item) => item.id !== schedule.id),
+      );
+    } catch (error) {
+      setDataError(
+        error instanceof Error ? error.message : "삭제에 실패했습니다.",
       );
     }
   };
@@ -307,6 +464,17 @@ export default function DietApp({
                 exercises={exercises}
                 openSheet={setSheet}
                 addWater={addWater}
+                resetWater={resetTodayWater}
+                editMeal={(meal) => {
+                  setEditingMeal(meal);
+                  setSheet("meal");
+                }}
+                deleteMeal={(meal) => void removeMeal(meal)}
+                editExercise={(exercise) => {
+                  setEditingExercise(exercise);
+                  setSheet("exercise");
+                }}
+                deleteExercise={(exercise) => void removeExercise(exercise)}
               />
             )}
             {tab === "foods" && (
@@ -339,6 +507,11 @@ export default function DietApp({
                     }
                   })()
                 }
+                editFood={(food) => {
+                  setEditingIngredient(food);
+                  setSheet("ingredient");
+                }}
+                deleteFood={(food) => void removeIngredient(food)}
               />
             )}
             {tab === "stats" && (
@@ -355,11 +528,14 @@ export default function DietApp({
             )}
             {tab === "schedule" && (
               <SchedulePage
+                schedules={schedules}
                 openSheet={setSheet}
-                editSchedule={(title) => {
-                  setScheduleTitle(title);
+                editSchedule={(schedule) => {
+                  setScheduleTitle(schedule.title);
+                  setEditingSchedule(schedule);
                   setSheet("schedule-edit");
                 }}
+                deleteSchedule={(schedule) => void removeSchedule(schedule)}
               />
             )}
             {tab === "ai" && <AssistantPage />}
@@ -405,7 +581,11 @@ export default function DietApp({
           goal={goal}
           foods={foods}
           scheduleTitle={scheduleTitle}
-          close={() => setSheet(null)}
+          ingredient={editingIngredient}
+          exercise={editingExercise}
+          meal={editingMeal}
+          schedule={editingSchedule}
+          close={closeSheet}
           saveBody={saveBody}
           saveGoal={async (next) => {
             try {
@@ -425,6 +605,8 @@ export default function DietApp({
           }}
           addExercise={addExercise}
           addMeal={addMeal}
+          deleteBody={removeTodayBody}
+          saveSchedule={saveSchedule}
         />
       )}
     </div>

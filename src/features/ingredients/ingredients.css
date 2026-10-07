@@ -281,8 +281,8 @@
 
 @media (max-width: 480px) {
   .page-title-actions {
-    flex-direction: column-reverse;
-    align-items: stretch;
+    flex-direction: row;
+    align-items: center;
   }
 
   .page-title-actions > button {
@@ -290,6 +290,7 @@
     padding: 0 10px;
     justify-content: center;
     font-size: 10px;
+    white-space: nowrap;
   }
 
   .category-manager form {

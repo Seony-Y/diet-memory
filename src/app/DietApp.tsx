@@ -30,6 +30,7 @@ import type {
   Ingredient,
   IngredientCategory,
 } from "../features/ingredients/model";
+import { orderIngredientCategories } from "../features/ingredients/model";
 import { useNutritionGoal } from "../features/nutrition/model";
 import { RecordSheet } from "../features/records/RecordSheet";
 import { SchedulePage } from "../features/schedule/SchedulePage";
@@ -54,6 +55,7 @@ import {
   setIngredientFavorite,
   updateExerciseRecord,
   updateIngredient,
+  updateIngredientCategoryOrder,
 } from "../lib/diet-api";
 import { isNeonConfigured } from "../lib/neon";
 
@@ -266,12 +268,31 @@ export default function DietApp({
     }
     try {
       const created = await addIngredientCategory(name, color);
-      setIngredientCategories((current) => [...current, created]);
+      setIngredientCategories((current) =>
+        orderIngredientCategories([...current, created]),
+      );
     } catch (error) {
       setDataError(
         error instanceof Error
           ? error.message
           : "카테고리 추가에 실패했습니다.",
+      );
+      throw error;
+    }
+  };
+
+  const reorderIngredientCategories = async (
+    categories: IngredientCategory[],
+  ) => {
+    const orderedCategories = orderIngredientCategories(categories);
+    try {
+      await updateIngredientCategoryOrder(orderedCategories);
+      setIngredientCategories(orderedCategories);
+    } catch (error) {
+      setDataError(
+        error instanceof Error
+          ? error.message
+          : "카테고리 순서 저장에 실패했습니다.",
       );
       throw error;
     }
@@ -565,6 +586,7 @@ export default function DietApp({
                   setSheet("ingredient");
                 }}
                 addCategory={createIngredientCategory}
+                reorderCategories={reorderIngredientCategories}
                 deleteCategory={(item) =>
                   setDeleteConfirmation({
                     message: `${item.name} 카테고리를 삭제합니다. 이 카테고리의 재료는 기타로 이동합니다.`,

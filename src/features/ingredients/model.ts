@@ -21,6 +21,11 @@ export interface IngredientCategory {
   isDefault: boolean;
 }
 
+export const orderIngredientCategories = (categories: IngredientCategory[]) => [
+  ...categories.filter((category) => category.name !== "기타"),
+  ...categories.filter((category) => category.name === "기타"),
+];
+
 export const categories = [
   "전체",
   "즐겨찾기",

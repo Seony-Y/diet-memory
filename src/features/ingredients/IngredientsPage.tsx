@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
 import {
+  ArrowDown,
+  ArrowUp,
   ChevronLeft,
   ChevronRight,
   Heart,
+  LockKeyhole,
   Pencil,
   Plus,
   Search,
@@ -26,6 +29,7 @@ interface IngredientsPageProps {
   toggleFavorite: (id: number | string) => void;
   editFood: (food: Ingredient) => void;
   addCategory: (name: string, color: string) => Promise<void>;
+  reorderCategories: (categories: IngredientCategory[]) => Promise<void>;
   deleteCategory: (category: IngredientCategory) => void;
 }
 
@@ -40,6 +44,7 @@ export function IngredientsPage({
   toggleFavorite,
   editFood,
   addCategory,
+  reorderCategories,
   deleteCategory,
 }: IngredientsPageProps) {
   const categoryList = useRef<HTMLDivElement>(null);
@@ -51,6 +56,7 @@ export function IngredientsPage({
   const [categoryName, setCategoryName] = useState("");
   const [categoryColor, setCategoryColor] = useState(categoryColorPalette[0]);
   const [savingCategory, setSavingCategory] = useState(false);
+  const [movingCategoryId, setMovingCategoryId] = useState<string>();
 
   useEffect(() => {
     const list = categoryList.current;
@@ -92,6 +98,38 @@ export function IngredientsPage({
     }
   };
 
+  const moveCategory = async (id: string, direction: -1 | 1) => {
+    const movableCategories = categories.filter((item) => item.name !== "기타");
+    const currentIndex = movableCategories.findIndex((item) => item.id === id);
+    const targetIndex = currentIndex + direction;
+    if (
+      currentIndex < 0 ||
+      targetIndex < 0 ||
+      targetIndex >= movableCategories.length
+    ) {
+      return;
+    }
+
+    const reordered = [...movableCategories];
+    [reordered[currentIndex], reordered[targetIndex]] = [
+      reordered[targetIndex],
+      reordered[currentIndex],
+    ];
+    const fallback = categories.find((item) => item.name === "기타");
+    setMovingCategoryId(id);
+    try {
+      await reorderCategories(fallback ? [...reordered, fallback] : reordered);
+    } catch {
+      // The app-level error banner reports the API error.
+    } finally {
+      setMovingCategoryId(undefined);
+    }
+  };
+
+  const movableCategoryCount = categories.filter(
+    (item) => item.name !== "기타",
+  ).length;
+
   return (
     <>
       <PageTitle
@@ -116,7 +154,7 @@ export function IngredientsPage({
           <header>
             <div>
               <strong>카테고리 관리</strong>
-              <span>새 카테고리를 만들거나 직접 만든 항목을 삭제하세요.</span>
+              <span>새 카테고리를 만들거나 순서를 변경할 수 있습니다.</span>
             </div>
           </header>
           <form onSubmit={submitCategory}>
@@ -145,17 +183,51 @@ export function IngredientsPage({
             </button>
           </form>
           <div className="category-manager-list">
-            {categories.map((item) => (
-              <div key={item.id}>
-                <span style={{ backgroundColor: item.color }} />
+            {categories.map((item, index) => (
+              <div className="category-manager-item" key={item.id}>
+                <span
+                  className="category-color"
+                  style={{ backgroundColor: item.color }}
+                />
                 <strong>{item.name}</strong>
-                {item.name !== "기타" && (
-                  <button
-                    onClick={() => deleteCategory(item)}
-                    aria-label={`${item.name} 카테고리 삭제`}
+                {item.name === "기타" ? (
+                  <span
+                    className="category-fixed"
+                    title="항상 마지막에 고정"
+                    aria-label="항상 마지막에 고정"
                   >
-                    <Trash2 size={15} />
-                  </button>
+                    <LockKeyhole size={13} />
+                  </span>
+                ) : (
+                  <div className="category-manager-actions">
+                    <button
+                      className="category-order"
+                      onClick={() => void moveCategory(item.id, -1)}
+                      disabled={index === 0 || movingCategoryId !== undefined}
+                      aria-label={`${item.name} 카테고리 위로 이동`}
+                    >
+                      <ArrowUp size={14} />
+                    </button>
+                    <button
+                      className="category-order"
+                      onClick={() => void moveCategory(item.id, 1)}
+                      disabled={
+                        index === movableCategoryCount - 1 ||
+                        movingCategoryId !== undefined
+                      }
+                      aria-label={`${item.name} 카테고리 아래로 이동`}
+                    >
+                      <ArrowDown size={14} />
+                    </button>
+                    <button
+                      className="category-delete"
+                      onClick={() => deleteCategory(item)}
+                      disabled={movingCategoryId !== undefined}
+                      aria-label={`${item.name} 카테고리 삭제`}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
                 )}
               </div>
             ))}

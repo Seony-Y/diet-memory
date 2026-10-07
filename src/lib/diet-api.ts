@@ -9,6 +9,7 @@ import type {
   Ingredient,
   IngredientCategory,
 } from "../features/ingredients/model";
+import { orderIngredientCategories } from "../features/ingredients/model";
 import type { NutritionGoal } from "../features/nutrition/model";
 import type { ScheduleEntry, ScheduleInput } from "../features/schedule/model";
 import { neon } from "./neon";
@@ -277,12 +278,14 @@ export async function loadDietData(): Promise<DietData> {
       fatGrams: Number(profile.fat_goal_g),
       waterMl: profile.water_goal_ml,
     },
-    categories: categoryRows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      color: row.color_hex,
-      isDefault: row.is_default,
-    })),
+    categories: orderIngredientCategories(
+      categoryRows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        color: row.color_hex,
+        isDefault: row.is_default,
+      })),
+    ),
     foods: ingredientRows.map((row) => {
       const category = row.category_id
         ? categoryMap.get(row.category_id)
@@ -539,7 +542,14 @@ export async function addIngredientCategory(
   name: string,
   color: string,
 ): Promise<IngredientCategory> {
-  const { data, error } = await requireNeon()
+  const client = requireNeon();
+  const fallback = await client
+    .from("categories")
+    .update({ sort_order: 2_147_483_647 })
+    .eq("name", "기타");
+  throwIfError(fallback.error);
+
+  const { data, error } = await client
     .from("categories")
     .insert({ name, color_hex: color, is_default: false, sort_order: 1000 })
     .select("id,name,color_hex,is_default")
@@ -555,6 +565,22 @@ export async function addIngredientCategory(
     color: row.color_hex,
     isDefault: row.is_default,
   };
+}
+
+export async function updateIngredientCategoryOrder(
+  categories: IngredientCategory[],
+) {
+  const client = requireNeon();
+  const orderedCategories = orderIngredientCategories(categories);
+  await Promise.all(
+    orderedCategories.map(async (category, index) => {
+      const { error } = await client
+        .from("categories")
+        .update({ sort_order: (index + 1) * 10 })
+        .eq("id", category.id);
+      throwIfError(error);
+    }),
+  );
 }
 
 export async function deleteIngredientCategory(id: string) {

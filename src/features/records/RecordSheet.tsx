@@ -202,13 +202,24 @@ function GoalForm({
   value: NutritionGoal;
   save: (value: NutritionGoal) => void;
 }) {
-  const [draft, setDraft] = useState(value);
-  const summary = getNutritionGoalSummary(draft);
+  const [draft, setDraft] = useState(() => ({
+    carbsGrams: String(value.carbsGrams),
+    proteinGrams: String(value.proteinGrams),
+    fatGrams: String(value.fatGrams),
+    waterMl: String(value.waterMl),
+  }));
+  const numericDraft: NutritionGoal = {
+    carbsGrams: Number(draft.carbsGrams),
+    proteinGrams: Number(draft.proteinGrams),
+    fatGrams: Number(draft.fatGrams),
+    waterMl: Number(draft.waterMl),
+  };
+  const summary = getNutritionGoalSummary(numericDraft);
   const updateNumber =
     (key: keyof NutritionGoal) => (event: ChangeEvent<HTMLInputElement>) => {
       setDraft((current) => ({
         ...current,
-        [key]: Number(event.target.value),
+        [key]: event.target.value,
       }));
     };
 
@@ -216,7 +227,7 @@ function GoalForm({
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        save(draft);
+        save(numericDraft);
       }}
     >
       <FormHead
@@ -412,7 +423,7 @@ function WaterForm({
   value: number;
   save: (amount: number) => void;
 }) {
-  const [amount, setAmount] = useState(value);
+  const [amount, setAmount] = useState(String(value));
   return (
     <>
       <FormHead
@@ -426,11 +437,11 @@ function WaterForm({
           min="0"
           max="5000"
           value={amount}
-          onChange={(event) => setAmount(Number(event.target.value))}
+          onChange={(event) => setAmount(event.target.value)}
         />
         <b>ml</b>
       </label>
-      <button className="submit" onClick={() => save(amount)}>
+      <button className="submit" onClick={() => save(Number(amount))}>
         저장하기
       </button>
     </>

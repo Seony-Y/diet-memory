@@ -8,10 +8,10 @@ import "./meal-form.css";
 interface SelectedMealFood {
   key: string;
   name: string;
-  calories: number;
-  carbs: number;
-  protein: number;
-  fat: number;
+  calories: number | string;
+  carbs: number | string;
+  protein: number | string;
+  fat: number | string;
 }
 
 const mealTones: Record<MealKind, string> = {
@@ -94,7 +94,7 @@ export function MealForm({
   const updateFood = (
     key: string,
     field: "calories" | "carbs" | "protein" | "fat",
-    value: number,
+    value: string,
   ) => {
     setSelectedFoods((current) =>
       current.map((food) =>
@@ -105,10 +105,10 @@ export function MealForm({
 
   const totals = selectedFoods.reduce(
     (total, food) => ({
-      calories: total.calories + food.calories,
-      carbs: total.carbs + food.carbs,
-      protein: total.protein + food.protein,
-      fat: total.fat + food.fat,
+      calories: total.calories + Number(food.calories),
+      carbs: total.carbs + Number(food.carbs),
+      protein: total.protein + Number(food.protein),
+      fat: total.fat + Number(food.fat),
     }),
     { calories: 0, carbs: 0, protein: 0, fat: 0 },
   );
@@ -247,11 +247,7 @@ export function MealForm({
                         step="0.1"
                         value={food[field]}
                         onChange={(event) =>
-                          updateFood(
-                            food.key,
-                            field,
-                            Number(event.target.value),
-                          )
+                          updateFood(food.key, field, event.target.value)
                         }
                       />
                       <b>{unit}</b>

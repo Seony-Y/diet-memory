@@ -7,23 +7,21 @@ import {
   getDaysInMonth,
   isSameMonth,
   parseISO,
+  setDate,
   startOfMonth,
 } from "date-fns";
-import { ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
-import type { Sheet } from "../../app/types";
+import { ChevronLeft, ChevronRight, Pencil, Plus } from "lucide-react";
 import { PageTitle, SectionTitle } from "../../shared/ui";
 import type { ScheduleEntry } from "./model";
 
 export function SchedulePage({
   schedules,
-  openSheet,
+  addSchedule,
   editSchedule,
-  deleteSchedule,
 }: {
   schedules: ScheduleEntry[];
-  openSheet: (sheet: Sheet) => void;
+  addSchedule: (scheduledOn: string) => void;
   editSchedule: (schedule: ScheduleEntry) => void;
-  deleteSchedule: (schedule: ScheduleEntry) => void;
 }) {
   const today = new Date();
   const [visibleMonth, setVisibleMonth] = useState(startOfMonth(today));
@@ -39,6 +37,7 @@ export function SchedulePage({
   const leadingDays = getDay(visibleMonth);
   const daysInMonth = getDaysInMonth(visibleMonth);
   const calendarCells = Math.ceil((leadingDays + daysInMonth) / 7) * 7;
+  const selectedDate = format(setDate(visibleMonth, selectedDay), "yyyy-MM-dd");
 
   const moveMonth = (offset: number) => {
     const nextMonth = addMonths(visibleMonth, offset);
@@ -53,7 +52,7 @@ export function SchedulePage({
         title="일정 정리"
         description="시술 날짜와 회복 일정을 놓치지 마세요."
       >
-        <button onClick={() => openSheet("schedule")}>
+        <button onClick={() => addSchedule(selectedDate)}>
           <Plus size={17} /> 일정 추가
         </button>
       </PageTitle>
@@ -120,7 +119,6 @@ export function SchedulePage({
               <ScheduleItem
                 schedule={schedule}
                 onEdit={editSchedule}
-                onDelete={deleteSchedule}
                 key={schedule.id}
               />
             ))}
@@ -136,7 +134,6 @@ export function SchedulePage({
             <ScheduleItem
               schedule={schedule}
               onEdit={editSchedule}
-              onDelete={deleteSchedule}
               key={schedule.id}
             />
           ))
@@ -151,11 +148,9 @@ export function SchedulePage({
 function ScheduleItem({
   schedule,
   onEdit,
-  onDelete,
 }: {
   schedule: ScheduleEntry;
   onEdit: (schedule: ScheduleEntry) => void;
-  onDelete: (schedule: ScheduleEntry) => void;
 }) {
   const date = schedule.scheduledOn ? parseISO(schedule.scheduledOn) : null;
   return (
@@ -176,13 +171,6 @@ function ScheduleItem({
           aria-label={`${schedule.title} 일정 수정`}
         >
           <Pencil size={15} />
-        </button>
-        <button
-          className="schedule-edit delete-action"
-          onClick={() => onDelete(schedule)}
-          aria-label={`${schedule.title} 일정 삭제`}
-        >
-          <Trash2 size={15} />
         </button>
       </div>
     </article>

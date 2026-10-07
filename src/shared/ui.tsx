@@ -188,12 +188,16 @@ export function MetricCard({
   eyebrow,
   title,
   onAdd,
+  actionIcon: ActionIcon = Plus,
+  actionLabel = `${title} 추가`,
   children,
 }: {
   icon: LucideIcon;
   eyebrow: string;
   title: string;
   onAdd: () => void;
+  actionIcon?: LucideIcon;
+  actionLabel?: string;
   children: ReactNode;
 }) {
   return (
@@ -206,8 +210,8 @@ export function MetricCard({
           <span>{eyebrow}</span>
           <b>{title}</b>
         </p>
-        <button onClick={onAdd} aria-label={`${title} 추가`}>
-          <Plus size={17} />
+        <button onClick={onAdd} aria-label={actionLabel}>
+          <ActionIcon size={17} />
         </button>
       </header>
       {children}

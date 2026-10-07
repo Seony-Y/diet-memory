@@ -135,8 +135,8 @@
   position: absolute;
   top: 15px;
   right: 15px;
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   display: grid;
   place-items: center;
   border: 1px solid #ffffff30;
@@ -222,8 +222,9 @@
 
 .body-detail-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 7px 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  justify-items: stretch;
+  gap: 0;
 }
 
 .record-range {
@@ -343,6 +344,7 @@
 }
 
 .exercise-records article {
+  position: relative;
   min-height: 58px;
   padding: 12px 2px;
   display: flex;
@@ -377,7 +379,11 @@
 }
 
 .exercise-records article > .record-actions {
+  height: auto;
+  margin-left: auto;
+  align-self: stretch;
   flex-direction: row;
+  justify-content: center;
   gap: 6px;
 }
 

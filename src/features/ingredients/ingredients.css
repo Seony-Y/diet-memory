@@ -6,17 +6,18 @@
 .food-row {
   position: relative;
   min-height: 70px;
-  padding: 12px 14px 42px;
+  padding: 12px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   border: 1px solid #e1e8eb;
   border-radius: 8px;
   background: #fff;
 }
 
 .food-copy > div {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -24,10 +25,12 @@
 
 .category-badge {
   padding: 3px 6px;
-  border: 1px solid color-mix(in srgb, var(--category-color) 70%, #b7c2c7);
-  color: color-mix(in srgb, var(--category-color) 25%, #344750);
+  border: 0;
+  border-radius: 4px;
+  color: color-mix(in srgb, var(--category-color) 50%, #000);
   background: var(--category-color);
   font-size: 9px;
+  font-weight: 700;
 }
 
 .food-copy h3,
@@ -71,37 +74,48 @@
 }
 
 .food-actions {
-  position: absolute;
-  right: 8px;
-  bottom: 7px;
+  min-width: 64px;
+  height: 100%;
+  padding: 0;
   display: flex;
+  flex: 0 0 auto;
+  flex-direction: row;
+  align-self: stretch;
   align-items: center;
+  justify-content: center;
   gap: 4px;
 }
 
 .food-actions button {
-  width: 24px;
-  height: 24px;
+  width: 30px;
+  height: 30px;
   padding: 0;
   display: grid;
   place-items: center;
   border: 0;
-  color: #ef806c;
-  background: transparent;
+  border-radius: 5px;
+  color: #526a74;
+  background: #f2f6f8;
+}
+
+.food-actions button:hover {
+  color: var(--mp-color-primitives-blue-05);
+  background: #eaf2f6;
 }
 
 .food-favorite {
   color: #ef806c !important;
+  background: transparent !important;
 }
 
 @media (max-width: 480px) {
   .food-row {
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 8px;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 7px;
   }
 
   .food-nutrition {
-    min-width: 88px;
+    min-width: 76px;
   }
 
   .food-nutrition p {

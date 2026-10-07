@@ -369,22 +369,52 @@ export async function deleteTodayBodyRecord() {
   throwIfError(error);
 }
 
-export async function addWaterRecord(amountMl: number) {
-  const { error } = await requireNeon()
-    .from("water_records")
-    .insert({ amount_ml: amountMl });
-  throwIfError(error);
-}
-
-export async function deleteTodayWaterRecords() {
+export async function saveTodayWaterTotal(amountMl: number) {
   const dayStart = startOfDay(new Date()).toISOString();
   const dayEnd = addDays(startOfDay(new Date()), 1).toISOString();
-  const { error } = await requireNeon()
+  const client = requireNeon();
+  const existing = await client
     .from("water_records")
-    .delete()
+    .select("id")
     .gte("consumed_at", dayStart)
     .lt("consumed_at", dayEnd);
-  throwIfError(error);
+  throwIfError(existing.error);
+
+  const records = (existing.data ?? []) as Array<{ id: string }>;
+  if (amountMl === 0) {
+    if (!records.length) return;
+    const removal = await client
+      .from("water_records")
+      .delete()
+      .in(
+        "id",
+        records.map((record) => record.id),
+      );
+    throwIfError(removal.error);
+    return;
+  }
+
+  if (!records.length) {
+    const insertion = await client
+      .from("water_records")
+      .insert({ amount_ml: amountMl });
+    throwIfError(insertion.error);
+    return;
+  }
+
+  const update = await client
+    .from("water_records")
+    .update({ amount_ml: amountMl })
+    .eq("id", records[0].id);
+  throwIfError(update.error);
+
+  const duplicateIds = records.slice(1).map((record) => record.id);
+  if (!duplicateIds.length) return;
+  const removal = await client
+    .from("water_records")
+    .delete()
+    .in("id", duplicateIds);
+  throwIfError(removal.error);
 }
 
 export async function addExerciseRecord(exercise: Omit<ExerciseRecord, "id">) {

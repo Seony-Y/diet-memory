@@ -6,9 +6,9 @@ import {
   Bot,
   CalendarDays,
   Home,
-  Sparkles,
   Power,
   Utensils,
+  X,
 } from "lucide-react";
 import type { Sheet, Tab } from "./types";
 import { AssistantPage } from "../features/assistant/AssistantPage";
@@ -35,18 +35,17 @@ import { NavButton } from "../shared/ui";
 import {
   addExerciseRecord,
   addIngredient,
-  addWaterRecord,
   deleteExerciseRecord,
   deleteIngredient,
   deleteMealRecord,
   deleteScheduleRecord,
   deleteTodayBodyRecord,
-  deleteTodayWaterRecords,
   loadDietData,
   saveBodyRecord as persistBodyRecord,
   saveMealRecord,
   saveNutritionGoal,
   saveScheduleRecord,
+  saveTodayWaterTotal,
   setIngredientFavorite,
   updateExerciseRecord,
   updateIngredient,
@@ -70,6 +69,11 @@ const StatisticsPage = lazy(() =>
   })),
 );
 
+interface DeleteConfirmation {
+  message: string;
+  action: () => Promise<void>;
+}
+
 export default function DietApp({
   userEmail,
   signOut,
@@ -80,6 +84,7 @@ export default function DietApp({
   const [tab, setTab] = useState<Tab>("today");
   const [sheet, setSheet] = useState<Sheet>(null);
   const [scheduleTitle, setScheduleTitle] = useState<string>();
+  const [scheduleDate, setScheduleDate] = useState<string>();
   const [water, setWater] = useState(0);
   const {
     records: bodyRecords,
@@ -98,6 +103,9 @@ export default function DietApp({
   const [search, setSearch] = useState("");
   const [dataLoading, setDataLoading] = useState(isNeonConfigured);
   const [dataError, setDataError] = useState("");
+  const [deleteConfirmation, setDeleteConfirmation] =
+    useState<DeleteConfirmation>();
+  const [deleting, setDeleting] = useState(false);
   const [editingIngredient, setEditingIngredient] = useState<Ingredient>();
   const [editingExercise, setEditingExercise] = useState<ExerciseRecord>();
   const [editingMeal, setEditingMeal] = useState<MealSummary>();
@@ -194,10 +202,11 @@ export default function DietApp({
     }
   };
 
-  const addWater = async (amount: number) => {
+  const saveWater = async (amount: number) => {
     try {
-      await addWaterRecord(amount);
-      setWater((current) => current + amount);
+      await saveTodayWaterTotal(amount);
+      setWater(amount);
+      setSheet(null);
     } catch (error) {
       setDataError(
         error instanceof Error ? error.message : "저장에 실패했습니다.",
@@ -308,13 +317,14 @@ export default function DietApp({
     setEditingExercise(undefined);
     setEditingMeal(undefined);
     setEditingSchedule(undefined);
+    setScheduleDate(undefined);
   };
 
   const removeIngredient = async (food: Ingredient) => {
-    if (!globalThis.confirm(`${food.name} 재료를 삭제할까요?`)) return;
     try {
       await deleteIngredient(food.id);
       setFoods((current) => current.filter((item) => item.id !== food.id));
+      closeSheet();
     } catch (error) {
       setDataError(
         error instanceof Error ? error.message : "삭제에 실패했습니다.",
@@ -323,43 +333,10 @@ export default function DietApp({
   };
 
   const removeExercise = async (exercise: ExerciseRecord) => {
-    if (!globalThis.confirm(`${exercise.name} 운동 기록을 삭제할까요?`)) return;
     try {
       await deleteExerciseRecord(exercise.id);
       setExercises((current) =>
         current.filter((item) => item.id !== exercise.id),
-      );
-    } catch (error) {
-      setDataError(
-        error instanceof Error ? error.message : "삭제에 실패했습니다.",
-      );
-    }
-  };
-
-  const removeMeal = async (meal: MealSummary) => {
-    if (!meal.id || !globalThis.confirm(`${meal.kind} 식단을 삭제할까요?`))
-      return;
-    try {
-      await deleteMealRecord(meal.id);
-      setMeals((current) => {
-        const next = current.filter((item) => item.id !== meal.id);
-        setIntake(calculateMealIntake(next));
-        return next;
-      });
-    } catch (error) {
-      setDataError(
-        error instanceof Error ? error.message : "삭제에 실패했습니다.",
-      );
-    }
-  };
-
-  const removeTodayBody = async () => {
-    if (!globalThis.confirm("오늘의 몸 상태 기록을 삭제할까요?")) return;
-    try {
-      await deleteTodayBodyRecord();
-      const today = format(new Date(), "yyyy-MM-dd");
-      setBodyRecords((current) =>
-        current.filter((record) => record.recordedOn !== today),
       );
       closeSheet();
     } catch (error) {
@@ -369,11 +346,31 @@ export default function DietApp({
     }
   };
 
-  const resetTodayWater = async () => {
-    if (!globalThis.confirm("오늘의 물 섭취 기록을 모두 삭제할까요?")) return;
+  const removeMeal = async (meal: MealSummary) => {
+    if (!meal.id) return;
     try {
-      await deleteTodayWaterRecords();
-      setWater(0);
+      await deleteMealRecord(meal.id);
+      setMeals((current) => {
+        const next = current.filter((item) => item.id !== meal.id);
+        setIntake(calculateMealIntake(next));
+        return next;
+      });
+      closeSheet();
+    } catch (error) {
+      setDataError(
+        error instanceof Error ? error.message : "삭제에 실패했습니다.",
+      );
+    }
+  };
+
+  const removeTodayBody = async () => {
+    try {
+      await deleteTodayBodyRecord();
+      const today = format(new Date(), "yyyy-MM-dd");
+      setBodyRecords((current) =>
+        current.filter((record) => record.recordedOn !== today),
+      );
+      closeSheet();
     } catch (error) {
       setDataError(
         error instanceof Error ? error.message : "삭제에 실패했습니다.",
@@ -406,12 +403,12 @@ export default function DietApp({
   };
 
   const removeSchedule = async (schedule: ScheduleEntry) => {
-    if (!globalThis.confirm(`${schedule.title} 일정을 삭제할까요?`)) return;
     try {
       await deleteScheduleRecord(schedule.id);
       setSchedules((current) =>
         current.filter((item) => item.id !== schedule.id),
       );
+      closeSheet();
     } catch (error) {
       setDataError(
         error instanceof Error ? error.message : "삭제에 실패했습니다.",
@@ -423,7 +420,7 @@ export default function DietApp({
     <div className="app-shell">
       <header className="topbar">
         <div className="brand-mark">
-          <Sparkles size={17} />
+          <img src="/icon-192x192.png" alt="" />
         </div>
         <div className="brand">
           <span>DIET MEMORY</span>
@@ -463,18 +460,14 @@ export default function DietApp({
                 intake={intake}
                 exercises={exercises}
                 openSheet={setSheet}
-                addWater={addWater}
-                resetWater={resetTodayWater}
                 editMeal={(meal) => {
                   setEditingMeal(meal);
                   setSheet("meal");
                 }}
-                deleteMeal={(meal) => void removeMeal(meal)}
                 editExercise={(exercise) => {
                   setEditingExercise(exercise);
                   setSheet("exercise");
                 }}
-                deleteExercise={(exercise) => void removeExercise(exercise)}
               />
             )}
             {tab === "foods" && (
@@ -511,7 +504,6 @@ export default function DietApp({
                   setEditingIngredient(food);
                   setSheet("ingredient");
                 }}
-                deleteFood={(food) => void removeIngredient(food)}
               />
             )}
             {tab === "stats" && (
@@ -529,13 +521,15 @@ export default function DietApp({
             {tab === "schedule" && (
               <SchedulePage
                 schedules={schedules}
-                openSheet={setSheet}
+                addSchedule={(scheduledOn) => {
+                  setScheduleDate(scheduledOn);
+                  setSheet("schedule");
+                }}
                 editSchedule={(schedule) => {
                   setScheduleTitle(schedule.title);
                   setEditingSchedule(schedule);
                   setSheet("schedule-edit");
                 }}
-                deleteSchedule={(schedule) => void removeSchedule(schedule)}
               />
             )}
             {tab === "ai" && <AssistantPage />}
@@ -577,10 +571,12 @@ export default function DietApp({
       {sheet && (
         <RecordSheet
           sheet={sheet}
+          water={water}
           body={todayBody}
           goal={goal}
           foods={foods}
           scheduleTitle={scheduleTitle}
+          scheduleDate={scheduleDate}
           ingredient={editingIngredient}
           exercise={editingExercise}
           meal={editingMeal}
@@ -599,15 +595,84 @@ export default function DietApp({
             }
           }}
           addFood={addFood}
-          addWater={(amount) => {
-            addWater(amount);
-            setSheet(null);
-          }}
+          saveWater={saveWater}
           addExercise={addExercise}
           addMeal={addMeal}
-          deleteBody={removeTodayBody}
+          deleteBody={() =>
+            setDeleteConfirmation({
+              message: "오늘의 몸 상태 기록을 삭제합니다.",
+              action: removeTodayBody,
+            })
+          }
+          deleteCurrent={
+            editingIngredient
+              ? () =>
+                  setDeleteConfirmation({
+                    message: `${editingIngredient.name} 재료를 삭제합니다.`,
+                    action: () => removeIngredient(editingIngredient),
+                  })
+              : editingExercise
+                ? () =>
+                    setDeleteConfirmation({
+                      message: `${editingExercise.name} 운동 기록을 삭제합니다.`,
+                      action: () => removeExercise(editingExercise),
+                    })
+                : editingMeal
+                  ? () =>
+                      setDeleteConfirmation({
+                        message: `${editingMeal.kind} 식단 기록을 삭제합니다.`,
+                        action: () => removeMeal(editingMeal),
+                      })
+                  : editingSchedule
+                    ? () =>
+                        setDeleteConfirmation({
+                          message: `${editingSchedule.title} 일정을 삭제합니다.`,
+                          action: () => removeSchedule(editingSchedule),
+                        })
+                    : undefined
+          }
           saveSchedule={saveSchedule}
         />
+      )}
+      {deleteConfirmation && (
+        <div className="confirm-backdrop" role="presentation">
+          <section
+            className="confirm-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-confirm-title"
+          >
+            <button
+              className="confirm-close"
+              onClick={() => setDeleteConfirmation(undefined)}
+              aria-label="삭제 확인 닫기"
+            >
+              <X size={18} />
+            </button>
+            <div className="confirm-mark">
+              <X size={22} />
+            </div>
+            <h2 id="delete-confirm-title">삭제하시겠습니까?</h2>
+            <p>{deleteConfirmation.message}</p>
+            <div className="confirm-actions">
+              <button onClick={() => setDeleteConfirmation(undefined)}>
+                취소
+              </button>
+              <button
+                className="confirm-delete"
+                disabled={deleting}
+                onClick={async () => {
+                  setDeleting(true);
+                  await deleteConfirmation.action();
+                  setDeleting(false);
+                  setDeleteConfirmation(undefined);
+                }}
+              >
+                {deleting ? "삭제 중..." : "삭제"}
+              </button>
+            </div>
+          </section>
+        </div>
       )}
     </div>
   );

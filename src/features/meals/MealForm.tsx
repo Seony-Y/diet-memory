@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Search, Trash2 } from "lucide-react";
+import { Plus, Search, X } from "lucide-react";
 import type { MealKind, MealSummary } from "../dashboard/model";
 import type { Ingredient } from "../ingredients/model";
 import { SelectField } from "../../shared/ui";
@@ -226,7 +226,7 @@ export function MealForm({
                   }
                   aria-label={`${food.name} 제거`}
                 >
-                  <Trash2 size={15} />
+                  <X size={16} />
                 </button>
               </header>
               <div>

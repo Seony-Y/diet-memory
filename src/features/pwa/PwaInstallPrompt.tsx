@@ -55,7 +55,7 @@ export function PwaInstallPrompt() {
 
   return (
     <aside className="pwa-install" aria-label="Diet Memory 앱 설치">
-      <img src="/pwa-192x192.png" alt="" />
+      <img src="/icon-192x192.png" alt="" />
       <div className="pwa-install-copy">
         <strong>Diet Memory 앱 설치</strong>
         <span>

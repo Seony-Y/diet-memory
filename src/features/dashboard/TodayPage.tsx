@@ -8,7 +8,6 @@ import {
   Plus,
   Pencil,
   Settings2,
-  Trash2,
   Utensils,
   Weight,
 } from "lucide-react";
@@ -28,12 +27,8 @@ interface TodayPageProps {
   intake: NutritionIntake;
   exercises: ExerciseRecord[];
   openSheet: (sheet: Sheet) => void;
-  addWater: (amount: number) => void;
-  resetWater: () => void;
   editMeal: (meal: MealSummary) => void;
-  deleteMeal: (meal: MealSummary) => void;
   editExercise: (exercise: ExerciseRecord) => void;
-  deleteExercise: (exercise: ExerciseRecord) => void;
 }
 
 export function TodayPage({
@@ -45,12 +40,8 @@ export function TodayPage({
   intake,
   exercises,
   openSheet,
-  addWater,
-  resetWater,
   editMeal,
-  deleteMeal,
   editExercise,
-  deleteExercise,
 }: TodayPageProps) {
   const [selectedMeal, setSelectedMeal] = useState<string>();
   const goalSummary = getNutritionGoalSummary(goal);
@@ -84,7 +75,7 @@ export function TodayPage({
           onClick={() => openSheet("goals")}
           aria-label="칼로리와 영양 목표 설정"
         >
-          <Settings2 size={18} />
+          <Settings2 size={14} />
         </button>
         <div className="ring">
           <svg viewBox="0 0 100 100" aria-hidden="true">
@@ -200,13 +191,6 @@ export function TodayPage({
                     >
                       <Pencil size={15} />
                     </button>
-                    <button
-                      className="delete-action"
-                      onClick={() => deleteMeal(meal)}
-                      aria-label={`${meal.kind} 식단 삭제`}
-                    >
-                      <Trash2 size={15} />
-                    </button>
                   </div>
                 </article>
                 {isSelected && (
@@ -251,6 +235,8 @@ export function TodayPage({
           eyebrow="WATER"
           title="물 섭취"
           onAdd={() => openSheet("water")}
+          actionIcon={Pencil}
+          actionLabel="물 섭취량 수정"
         >
           <div className="metric-value">
             <strong>{water.toLocaleString()}</strong>
@@ -263,29 +249,14 @@ export function TodayPage({
               }}
             />
           </div>
-          <div className="quick-water">
-            {[100, 250, 500].map((amount) => (
-              <button key={amount} onClick={() => addWater(amount)}>
-                +{amount}
-              </button>
-            ))}
-            {water > 0 && (
-              <button
-                className="delete-action"
-                onClick={resetWater}
-                aria-label="오늘 물 기록 초기화"
-                title="오늘 기록 초기화"
-              >
-                <Trash2 size={14} />
-              </button>
-            )}
-          </div>
         </MetricCard>
         <MetricCard
           icon={Weight}
           eyebrow="BODY"
           title="몸무게"
           onAdd={() => openSheet("weight")}
+          actionIcon={Pencil}
+          actionLabel="몸 상태 수정"
         >
           <div className="metric-value">
             <strong>{body?.weightKg.toFixed(1) ?? "—"}</strong>
@@ -335,13 +306,6 @@ export function TodayPage({
                       aria-label={`${exercise.name} 운동 수정`}
                     >
                       <Pencil size={14} />
-                    </button>
-                    <button
-                      className="delete-action"
-                      onClick={() => deleteExercise(exercise)}
-                      aria-label={`${exercise.name} 운동 삭제`}
-                    >
-                      <Trash2 size={14} />
                     </button>
                   </div>
                 </article>

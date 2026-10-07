@@ -2,6 +2,7 @@
   width: min(100%, 960px);
   min-height: 100vh;
   margin: auto;
+  overflow-x: clip;
   background: #f8fafb;
   box-shadow: 0 0 60px #10192914;
 }
@@ -20,11 +21,15 @@
 .brand-mark {
   width: 34px;
   height: 34px;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  background: var(--mp-color-primitives-blue-05);
+  overflow: hidden;
+  flex: 0 0 34px;
   border-radius: 8px;
+}
+.brand-mark img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
 }
 .brand {
   display: flex;
@@ -219,10 +224,11 @@
   overflow: hidden;
 }
 .meal {
-  min-height: 74px;
-  padding: 12px 15px;
+  position: relative;
+  min-height: 86px;
+  padding: 19px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 66px;
+  grid-template-columns: minmax(0, 1fr) 30px;
   align-items: center;
   gap: 12px;
   border-bottom: 1px solid #edf1f3;
@@ -350,23 +356,32 @@
 .record-actions button,
 .metric header > button,
 .exercise > button {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   padding: 0;
   display: grid;
   place-items: center;
-  border: 1px solid #dbe3e7;
-  border-radius: 6px;
-  background: #fff;
+  border: 0;
+  border-radius: 5px;
+  color: #526a74;
+  background: #f2f6f8;
 }
 .record-actions {
+  position: static;
+  min-width: 30px;
+  height: 100%;
+  padding: 0;
   display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-self: stretch;
   align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
+  justify-content: center;
+  gap: 8px;
 }
-.delete-action {
-  color: #bd5b52 !important;
+.record-actions button:hover {
+  color: var(--mp-color-primitives-blue-05);
+  background: #eaf2f6;
 }
 .delete-record {
   width: 100%;
@@ -440,34 +455,26 @@
   height: 100%;
   background: var(--mp-color-primitives-blue-08);
 }
-.quick-water {
-  margin-top: 13px;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
-}
-.quick-water button {
-  height: 27px;
-  border: 1px solid #dce8ed;
-  border-radius: 5px;
-  color: var(--mp-color-primitives-blue-05);
-  background: #f5fafc;
-  font-size: 10px;
-}
 .body-detail {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   border-top: 1px solid #edf1f3;
 }
 .body-detail span {
-  padding-top: 11px;
+  min-width: 0;
+  padding: 11px 4px 0;
   color: #7c7c7c;
   font-size: 10px;
+  text-align: center;
+}
+.body-detail span + span {
+  border-left: 1px solid #edf1f3;
 }
 .body-detail b {
   display: block;
   margin-top: 3px;
   color: #2a2a2a;
+  white-space: nowrap;
 }
 .exercise {
   margin-top: 18px;
@@ -751,31 +758,102 @@
 .days .today.selected {
   box-shadow: inset 0 0 0 2px #fff;
 }
-.days .marked:after {
-  content: "";
-  position: absolute;
-  top: 3px;
-  right: 5px;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: #ef806c;
+.days .marked:not(.today) {
+  color: #2576c1;
+  background: #eaf4fa;
+  font-weight: 700;
+}
+.days .marked.today {
+  box-shadow: inset 0 -3px 0 #79d8ec;
+}
+.days .marked.today.selected {
+  box-shadow:
+    inset 0 0 0 2px #fff,
+    inset 0 -4px 0 #79d8ec;
 }
 .schedule-list {
   display: grid;
   gap: 10px;
 }
 .schedule-list article {
+  position: relative;
   padding: 14px;
   display: grid;
-  grid-template-columns: 51px minmax(0, 1fr);
+  grid-template-columns: 51px minmax(0, 1fr) 34px;
   align-items: center;
   gap: 13px;
 }
 .schedule-list article > .record-actions {
-  grid-column: 2;
-  justify-content: flex-start;
-  margin-top: -5px;
+  grid-column: auto;
+}
+.confirm-backdrop {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  padding: 20px;
+  display: grid;
+  place-items: center;
+  background: #17252c70;
+  backdrop-filter: blur(3px);
+}
+.confirm-dialog {
+  position: relative;
+  width: min(100%, 340px);
+  padding: 28px 24px 22px;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 22px 60px #13242c3d;
+  text-align: center;
+}
+.confirm-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  color: #718087;
+  background: transparent;
+}
+.confirm-mark {
+  width: 46px;
+  height: 46px;
+  margin: 0 auto 14px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #b44b43;
+  background: #fff0ee;
+}
+.confirm-dialog h2 {
+  margin: 0;
+  font-size: 19px;
+}
+.confirm-dialog p {
+  margin: 8px 0 20px;
+  color: #687a82;
+  font-size: 12px;
+}
+.confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.confirm-actions button {
+  height: 42px;
+  border: 1px solid #dce4e8;
+  border-radius: 7px;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+.confirm-actions .confirm-delete {
+  border-color: #b44b43;
+  color: #fff;
+  background: #b44b43;
 }
 .schedule-date {
   height: 51px;
@@ -1060,9 +1138,8 @@
     display: none;
   }
   .meal {
-    grid-template-columns: minmax(0, 1fr) 28px;
+    grid-template-columns: minmax(0, 1fr) 30px;
     gap: 8px;
-    padding-inline: 11px;
   }
   .meal-summary {
     grid-template-columns: 38px minmax(0, 1fr) 55px;

@@ -20,10 +20,12 @@ import { SelectField } from "../../shared/ui";
 
 interface RecordSheetProps {
   sheet: Exclude<Sheet, null>;
+  water: number;
   body?: BodyRecord;
   goal: NutritionGoal;
   foods: Ingredient[];
   scheduleTitle?: string;
+  scheduleDate?: string;
   ingredient?: Ingredient;
   exercise?: ExerciseRecord;
   meal?: MealSummary;
@@ -32,19 +34,23 @@ interface RecordSheetProps {
   saveBody: (value: BodyRecordInput) => void;
   saveGoal: (value: NutritionGoal) => void;
   addFood: (event: FormEvent<HTMLFormElement>) => void;
-  addWater: (amount: number) => void;
+  saveWater: (amount: number) => void;
   addExercise: (exercise: Omit<ExerciseRecord, "id">) => void;
   addMeal: (meal: MealSummary) => void;
   deleteBody: () => void;
+  deleteCurrent?: () => void;
+  deleteLabel?: string;
   saveSchedule: (schedule: ScheduleInput) => void;
 }
 
 export function RecordSheet({
   sheet,
+  water,
   body,
   goal,
   foods,
   scheduleTitle,
+  scheduleDate,
   ingredient,
   exercise,
   meal,
@@ -53,10 +59,12 @@ export function RecordSheet({
   saveBody,
   saveGoal,
   addFood,
-  addWater,
+  saveWater,
   addExercise,
   addMeal,
   deleteBody,
+  deleteCurrent,
+  deleteLabel,
   saveSchedule,
 }: RecordSheetProps) {
   const quickSheet =
@@ -79,7 +87,7 @@ export function RecordSheet({
         {sheet === "ingredient" && (
           <FoodForm value={ingredient} submit={addFood} />
         )}
-        {sheet === "water" && <WaterForm save={addWater} />}
+        {sheet === "water" && <WaterForm value={water} save={saveWater} />}
         {sheet === "exercise" && (
           <ExerciseForm value={exercise} save={addExercise} />
         )}
@@ -90,9 +98,15 @@ export function RecordSheet({
           <QuickForm
             type={quickSheet}
             scheduleTitle={scheduleTitle}
+            scheduleDate={scheduleDate}
             schedule={schedule}
             save={saveSchedule}
           />
+        )}
+        {deleteCurrent && (
+          <button className="delete-record" onClick={deleteCurrent}>
+            {deleteLabel ?? "이 기록 삭제"}
+          </button>
         )}
       </section>
     </div>
@@ -400,25 +414,33 @@ function FoodForm({
   );
 }
 
-function WaterForm({ save }: { save: (amount: number) => void }) {
-  const [amount, setAmount] = useState(250);
+function WaterForm({
+  value,
+  save,
+}: {
+  value: number;
+  save: (amount: number) => void;
+}) {
+  const [amount, setAmount] = useState(value);
   return (
     <>
       <FormHead
         eyebrow="WATER"
-        title="물 섭취 기록"
-        description="마신 양을 직접 입력해 주세요."
+        title="물 섭취량 수정"
+        description="오늘 마신 물의 총량을 입력해 주세요."
       />
       <label className="large-input">
         <input
           type="number"
+          min="0"
+          max="5000"
           value={amount}
           onChange={(event) => setAmount(Number(event.target.value))}
         />
         <b>ml</b>
       </label>
       <button className="submit" onClick={() => save(amount)}>
-        추가하기
+        저장하기
       </button>
     </>
   );
@@ -483,11 +505,13 @@ function ExerciseForm({
 function QuickForm({
   type,
   scheduleTitle,
+  scheduleDate,
   schedule,
   save,
 }: {
   type: "schedule" | "schedule-edit";
   scheduleTitle?: string;
+  scheduleDate?: string;
   schedule?: ScheduleEntry;
   save: (schedule: ScheduleInput) => void;
 }) {
@@ -528,7 +552,7 @@ function QuickForm({
           name="value"
           type="date"
           defaultValue={
-            type === "schedule-edit" ? schedule?.scheduledOn : undefined
+            type === "schedule-edit" ? schedule?.scheduledOn : scheduleDate
           }
           required
         />

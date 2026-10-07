@@ -10,7 +10,8 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.svg", "pwa-192x192.png", "pwa-512x512.png"],
+      includeAssets: ["favicon.ico", "icon-192x192.png", "icon-512x512.png"],
+      manifestFilename: "diet-memory.webmanifest",
       manifest: {
         name: "Diet Memory",
         short_name: "DietMemory",
@@ -21,13 +22,13 @@ export default defineConfig({
         display: "standalone",
         icons: [
           {
-            src: "/pwa-192x192.png",
+            src: "/icon-192x192.png",
             sizes: "192x192",
             type: "image/png",
             purpose: "any",
           },
           {
-            src: "/pwa-512x512.png",
+            src: "/icon-512x512.png",
             sizes: "512x512",
             type: "image/png",
             purpose: "any maskable",

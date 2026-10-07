@@ -27,6 +27,7 @@
 .pwa-install-copy {
   min-width: 0;
   display: grid;
+  flex: 1 1 auto;
   gap: 3px;
 }
 

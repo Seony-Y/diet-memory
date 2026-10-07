@@ -6,9 +6,11 @@ import "./diet-app.css";
 import "./features/dashboard/dashboard.css";
 import "./features/ingredients/ingredients.css";
 import { AuthGate } from "./features/auth/AuthGate";
+import { PwaInstallPrompt } from "./features/pwa/PwaInstallPrompt";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <AuthGate />
+    <PwaInstallPrompt />
   </StrictMode>,
 );

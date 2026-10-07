@@ -1,0 +1,1 @@
+drop table if exists public.playing_with_neon;

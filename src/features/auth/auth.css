@@ -1,0 +1,164 @@
+.auth-page {
+  min-height: 100vh;
+  padding: 32px 18px;
+  display: grid;
+  place-items: center;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.88), rgba(245, 250, 252, 0.96)),
+    repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      transparent 23px,
+      rgba(51, 125, 146, 0.08) 24px
+    );
+}
+
+.auth-panel {
+  width: min(100%, 390px);
+  padding: 34px 30px 30px;
+  border: 1px solid #dbe5e9;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 18px 55px rgba(43, 75, 87, 0.12);
+}
+
+.auth-brand-mark {
+  width: 46px;
+  height: 46px;
+  margin-bottom: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: #fff;
+  background: #238b82;
+}
+
+.auth-eyebrow {
+  color: #238b82;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.auth-panel h1 {
+  margin: 6px 0 8px;
+  font-size: 25px;
+}
+
+.auth-panel > p {
+  margin: 0;
+  color: #718087;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.auth-panel form {
+  margin-top: 25px;
+  display: grid;
+  gap: 14px;
+}
+
+.auth-panel label {
+  display: grid;
+  gap: 6px;
+}
+
+.auth-panel label span {
+  color: #53636a;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.auth-panel input {
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid #d5e0e4;
+  border-radius: 6px;
+  background: #fbfdfe;
+}
+
+.auth-panel form > button,
+.auth-error-panel > button {
+  height: 44px;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 6px;
+  color: #fff;
+  background: #2576c1;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.auth-panel form > button:disabled {
+  opacity: 0.55;
+}
+
+.auth-panel > small {
+  margin-top: 16px;
+  display: block;
+  color: #9aa4a9;
+  font-size: 9px;
+  text-align: center;
+}
+
+.auth-error {
+  margin: 0;
+  padding: 9px 10px;
+  color: #a54137;
+  border-radius: 5px;
+  background: #fff0ed;
+  font-size: 10px;
+}
+
+.auth-notice {
+  margin: 0;
+  padding: 9px 10px;
+  color: #176d63;
+  border-radius: 5px;
+  background: #eaf8f5;
+  font-size: 10px;
+}
+
+.auth-mode-toggle {
+  width: 100%;
+  margin-top: 16px;
+  border: 0;
+  color: #5d737c;
+  background: transparent;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.auth-error-panel h1 {
+  font-size: 20px;
+}
+
+.auth-error-panel {
+  text-align: center;
+}
+
+.auth-error-panel > button {
+  width: 100%;
+  font-size: 14px;
+}
+
+.auth-loading {
+  width: 34px;
+  height: 34px;
+  border: 3px solid #dbe8ec;
+  border-top-color: #238b82;
+  border-radius: 50%;
+  animation: auth-spin 0.8s linear infinite;
+}
+
+@keyframes auth-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

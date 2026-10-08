@@ -58,6 +58,7 @@ import {
   updateIngredientCategoryOrder,
 } from "../lib/diet-api";
 import { isNeonConfigured } from "../lib/neon";
+import { searchPublicFoods } from "../lib/public-food-api";
 
 const calculateMealIntake = (meals: MealSummary[]): NutritionIntake =>
   meals.reduce(
@@ -111,6 +112,10 @@ export default function DietApp({
   >([]);
   const [category, setCategory] = useState("전체");
   const [search, setSearch] = useState("");
+  const [publicFoods, setPublicFoods] = useState<Ingredient[]>([]);
+  const [publicFoodsLoading, setPublicFoodsLoading] = useState(false);
+  const [savingPublicFoodIds, setSavingPublicFoodIds] = useState<string[]>([]);
+  const [publicSearchError, setPublicSearchError] = useState("");
   const [dataLoading, setDataLoading] = useState(isNeonConfigured);
   const [dataError, setDataError] = useState("");
   const [deleteConfirmation, setDeleteConfirmation] =
@@ -185,18 +190,64 @@ export default function DietApp({
     };
   }, [setBodyRecords]);
 
-  const filteredFoods = useMemo(
-    () =>
-      foods.filter((food) => {
-        const matchesCategory =
-          category === "전체" ||
-          (category === "즐겨찾기"
-            ? food.favorite
-            : food.category === category);
-        return matchesCategory && food.name.includes(search);
-      }),
-    [category, foods, search],
-  );
+  const filteredFoods = useMemo(() => {
+    const tokens = search
+      .toLowerCase()
+      .split(/\s+/)
+      .map((token) => token.trim())
+      .filter(Boolean);
+
+    return foods.filter((food) => {
+      const matchesCategory =
+        category === "전체" ||
+        (category === "즐겨찾기"
+          ? food.favorite
+          : food.category === category);
+      if (!matchesCategory) return false;
+      if (!tokens.length) return true;
+      const searchable = `${food.brand ?? ""} ${food.name}`.toLowerCase();
+      return tokens.every((token) => searchable.includes(token));
+    });
+  }, [category, foods, search]);
+
+  useEffect(() => {
+    if (tab !== "foods") return;
+    const keyword = search.trim();
+    if (keyword.length < 2) {
+      setPublicFoods([]);
+      setPublicFoodsLoading(false);
+      setPublicSearchError("");
+      return;
+    }
+
+    let active = true;
+    const timer = globalThis.setTimeout(() => {
+      setPublicFoodsLoading(true);
+      setPublicSearchError("");
+      searchPublicFoods(keyword)
+        .then((results) => {
+          if (!active) return;
+          setPublicFoods(results);
+        })
+        .catch((error: unknown) => {
+          if (!active) return;
+          setPublicFoods([]);
+          setPublicSearchError(
+            error instanceof Error
+              ? error.message
+              : "공공데이터 검색에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+          );
+        })
+        .finally(() => {
+          if (active) setPublicFoodsLoading(false);
+        });
+    }, 300);
+
+    return () => {
+      active = false;
+      globalThis.clearTimeout(timer);
+    };
+  }, [search, tab]);
 
   const todayBody = getTodayRecord(bodyRecords);
   const yesterdayBody = getYesterdayRecord(bodyRecords);
@@ -231,6 +282,16 @@ export default function DietApp({
     try {
       const input = {
         name: String(form.get("name")),
+        brand: String(form.get("brand") ?? "") || editingIngredient?.brand,
+        source:
+          (String(form.get("source") ?? "") as "user" | "public") ||
+          editingIngredient?.source,
+        sourceOrigin:
+          String(form.get("sourceOrigin") ?? "") ||
+          editingIngredient?.sourceOrigin,
+        sourceSyncedAt:
+          String(form.get("sourceSyncedAt") ?? "") ||
+          editingIngredient?.sourceSyncedAt,
         category: String(form.get("category")),
         categoryColor: String(form.get("categoryColor")),
         amount: Number(form.get("amount")),
@@ -553,11 +614,16 @@ export default function DietApp({
             {tab === "foods" && (
               <IngredientsPage
                 foods={filteredFoods}
+                publicFoods={publicFoods}
+                publicFoodsLoading={publicFoodsLoading}
+                savingPublicFoodIds={savingPublicFoodIds}
+                publicSearchError={publicSearchError}
                 categories={ingredientCategories}
                 category={category}
                 search={search}
                 setCategory={setCategory}
                 setSearch={setSearch}
+                clearPublicSearchError={() => setPublicSearchError("")}
                 openSheet={setSheet}
                 toggleFavorite={(id) =>
                   void (async () => {
@@ -585,6 +651,65 @@ export default function DietApp({
                   setEditingIngredient(food);
                   setSheet("ingredient");
                 }}
+                savePublicFood={(food) =>
+                  void (async () => {
+                    const fallbackCategory = ingredientCategories.find(
+                      (item) => item.name === "기타",
+                    );
+                    const hasSameFood = foods.some(
+                      (item) =>
+                        item.name === food.name &&
+                        (item.brand ?? "") === (food.brand ?? ""),
+                    );
+                    if (hasSameFood) return;
+
+                    const stockUnit = ["g", "ml", "개", "회분"].includes(
+                      food.unit,
+                    )
+                      ? food.unit
+                      : "g";
+
+                    setSavingPublicFoodIds((current) => [
+                      ...current,
+                      String(food.id),
+                    ]);
+                    try {
+                      const saved = await addIngredient({
+                        name: food.name,
+                        brand: food.brand,
+                        source: "public",
+                        sourceOrigin:
+                          food.sourceOrigin ?? "식품의약품안전처 공공데이터",
+                        sourceSyncedAt:
+                          food.sourceSyncedAt ?? new Date().toISOString(),
+                        category: "기타",
+                        categoryColor: fallbackCategory?.color ?? "#E8ECEE",
+                        amount: food.amount || 100,
+                        unit: ["g", "ml", "개", "회분"].includes(food.unit)
+                          ? food.unit
+                          : "g",
+                        stockAmount: 0,
+                        stockUnit,
+                        calories: food.calories,
+                        carbs: food.carbs,
+                        protein: food.protein,
+                        fat: food.fat,
+                        favorite: false,
+                      });
+                      setFoods((current) => [saved, ...current]);
+                    } catch (error) {
+                      setDataError(
+                        error instanceof Error
+                          ? error.message
+                          : "저장에 실패했습니다.",
+                      );
+                    } finally {
+                      setSavingPublicFoodIds((current) =>
+                        current.filter((id) => id !== String(food.id)),
+                      );
+                    }
+                  })()
+                }
                 addCategory={createIngredientCategory}
                 reorderCategories={reorderIngredientCategories}
                 deleteCategory={(item) =>

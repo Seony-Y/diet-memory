@@ -20,14 +20,20 @@ import { PageTitle } from "../../shared/ui";
 
 interface IngredientsPageProps {
   foods: Ingredient[];
+  publicFoods: Ingredient[];
+  publicFoodsLoading: boolean;
+  savingPublicFoodIds: string[];
+  publicSearchError: string;
   categories: IngredientCategory[];
   category: string;
   search: string;
   setCategory: (value: string) => void;
   setSearch: (value: string) => void;
+  clearPublicSearchError: () => void;
   openSheet: (sheet: Sheet) => void;
   toggleFavorite: (id: number | string) => void;
   editFood: (food: Ingredient) => void;
+  savePublicFood: (food: Ingredient) => void;
   addCategory: (name: string, color: string) => Promise<void>;
   reorderCategories: (categories: IngredientCategory[]) => Promise<void>;
   deleteCategory: (category: IngredientCategory) => void;
@@ -35,14 +41,20 @@ interface IngredientsPageProps {
 
 export function IngredientsPage({
   foods,
+  publicFoods,
+  publicFoodsLoading,
+  savingPublicFoodIds,
+  publicSearchError,
   categories,
   category,
   search,
   setCategory,
   setSearch,
+  clearPublicSearchError,
   openSheet,
   toggleFavorite,
   editFood,
+  savePublicFood,
   addCategory,
   reorderCategories,
   deleteCategory,
@@ -129,6 +141,11 @@ export function IngredientsPage({
   const movableCategoryCount = categories.filter(
     (item) => item.name !== "기타",
   ).length;
+  const savedPublicFoodKeys = new Set(
+    foods
+      .filter((food) => food.source === "public")
+      .map((food) => `${(food.brand ?? "").toLowerCase()}::${food.name.toLowerCase()}`),
+  );
 
   return (
     <>
@@ -290,6 +307,11 @@ export function IngredientsPage({
             <div className="food-copy">
               <div>
                 <span
+                  className={`source-badge ${food.source === "public" ? "public" : "user"}`}
+                >
+                  {food.source === "public" ? "공공데이터" : "유저등록"}
+                </span>
+                <span
                   className="category-badge"
                   style={
                     {
@@ -299,13 +321,21 @@ export function IngredientsPage({
                 >
                   {food.category}
                 </span>
-                <h3>{food.name}</h3>
+                <h3>{food.brand ? `${food.brand} ${food.name}` : food.name}</h3>
               </div>
               <p>
                 보유 {food.stockAmount.toLocaleString()}
                 {food.stockUnit} · {food.amount}
                 {food.unit} 기준
               </p>
+              {food.source === "public" && (
+                <p className="food-source-meta">
+                  출처 {food.sourceOrigin ?? "식품의약품안전처 공공데이터"} · 동기화일{" "}
+                  {food.sourceSyncedAt
+                    ? new Date(food.sourceSyncedAt).toLocaleDateString("ko-KR")
+                    : "미기록"}
+                </p>
+              )}
             </div>
             <div className="food-nutrition">
               <strong>
@@ -339,6 +369,75 @@ export function IngredientsPage({
           </article>
         ))}
       </div>
+      {search.trim() && (
+        <section className="public-food-results">
+          <header>
+            <strong>공공데이터 검색 결과</strong>
+            <span>
+              {publicFoodsLoading
+                ? "조회 중..."
+                : `${publicFoods.length.toLocaleString()}건`}
+            </span>
+          </header>
+          {publicSearchError && (
+            <div className="public-search-toast" role="status" aria-live="polite">
+              <span>{publicSearchError}</span>
+              <button onClick={clearPublicSearchError} aria-label="공공 검색 안내 닫기">
+                닫기
+              </button>
+            </div>
+          )}
+          {publicFoodsLoading && (
+            <p className="public-food-empty">공공데이터를 조회하고 있어요.</p>
+          )}
+          {!publicFoodsLoading && !publicFoods.length && (
+            <p className="public-food-empty">검색 결과가 없습니다.</p>
+          )}
+          {!publicFoodsLoading &&
+            publicFoods.map((food) => {
+              const key = `${(food.brand ?? "").toLowerCase()}::${food.name.toLowerCase()}`;
+              const alreadySaved = savedPublicFoodKeys.has(key);
+              const isSaving = savingPublicFoodIds.includes(String(food.id));
+              return (
+                <article className="food-row public" key={food.id}>
+                  <div className="food-copy">
+                    <div>
+                      <span className="source-badge public">공공데이터</span>
+                      <h3>
+                        {food.brand ? `${food.brand} ${food.name}` : food.name}
+                      </h3>
+                    </div>
+                    <p>
+                      {food.amount}
+                      {food.unit} 기준
+                    </p>
+                  </div>
+                  <div className="food-nutrition">
+                    <strong>
+                      {food.calories}
+                      <small> kcal</small>
+                    </strong>
+                    <p>
+                      <span>탄 {food.carbs}g</span>
+                      <span>단 {food.protein}g</span>
+                      <span>지 {food.fat}g</span>
+                    </p>
+                  </div>
+                  <div className="food-actions">
+                    <button
+                      className="save-public-food"
+                      onClick={() => savePublicFood(food)}
+                      disabled={alreadySaved || isSaving}
+                      aria-label={`${food.name} 재료를 내 보관함에 저장`}
+                    >
+                      {alreadySaved ? "저장완료" : isSaving ? "저장 중" : "DB 저장"}
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+        </section>
+      )}
     </>
   );
 }

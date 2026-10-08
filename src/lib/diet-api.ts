@@ -32,6 +32,10 @@ interface IngredientRow {
   id: string;
   category_id: string | null;
   name: string;
+  brand_name: string | null;
+  source_type: "user" | "public" | null;
+  source_origin: string | null;
+  source_synced_at: string | null;
   base_amount: number | string;
   unit: string;
   stock_amount: number | string;
@@ -207,7 +211,7 @@ export async function loadDietData(): Promise<DietData> {
     client
       .from("ingredients")
       .select(
-        "id,category_id,name,base_amount,unit,stock_amount,stock_unit,calories,carbohydrates_g,protein_g,fat_g,is_favorite",
+        "id,category_id,name,brand_name,source_type,source_origin,source_synced_at,base_amount,unit,stock_amount,stock_unit,calories,carbohydrates_g,protein_g,fat_g,is_favorite",
       )
       .order("created_at", { ascending: false }),
     client
@@ -293,6 +297,9 @@ export async function loadDietData(): Promise<DietData> {
       return {
         id: row.id,
         name: row.name,
+        brand: row.brand_name ?? undefined,
+        sourceOrigin: row.source_origin ?? undefined,
+        sourceSyncedAt: row.source_synced_at ?? undefined,
         category: category?.name ?? "기타",
         categoryColor: category?.color_hex ?? "#E8ECEE",
         amount: Number(row.base_amount),
@@ -304,6 +311,7 @@ export async function loadDietData(): Promise<DietData> {
         protein: Number(row.protein_g),
         fat: Number(row.fat_g),
         favorite: row.is_favorite,
+        source: row.source_type ?? "user",
       };
     }),
     bodyRecords: bodyRows.map((row) => ({
@@ -518,6 +526,10 @@ export async function addIngredient(input: IngredientInput) {
     .insert({
       category_id: categoryData.id,
       name: input.name,
+      brand_name: input.brand ?? null,
+      source_type: input.source ?? "user",
+      source_origin: input.sourceOrigin ?? null,
+      source_synced_at: input.sourceSyncedAt ?? null,
       base_amount: input.amount,
       unit: unitToDatabase[input.unit] ?? "g",
       stock_amount: input.stockAmount,
@@ -535,6 +547,7 @@ export async function addIngredient(input: IngredientInput) {
     ...input,
     id: String(requireData(data, "재료 ID를 받지 못했습니다.").id),
     favorite: input.favorite ?? false,
+    source: (input.source ?? "user") as "user" | "public",
   };
 }
 
@@ -626,6 +639,10 @@ export async function updateIngredient(
     .update({
       category_id: categoryData.id,
       name: input.name,
+      brand_name: input.brand ?? null,
+      source_type: input.source ?? "user",
+      source_origin: input.sourceOrigin ?? null,
+      source_synced_at: input.sourceSyncedAt ?? null,
       base_amount: input.amount,
       unit: unitToDatabase[input.unit] ?? "g",
       stock_amount: input.stockAmount,
@@ -638,7 +655,12 @@ export async function updateIngredient(
     })
     .eq("id", id);
   throwIfError(error);
-  return { ...input, id, favorite: input.favorite ?? false };
+  return {
+    ...input,
+    id,
+    favorite: input.favorite ?? false,
+    source: (input.source ?? "user") as "user" | "public",
+  };
 }
 
 export async function deleteIngredient(id: number | string) {

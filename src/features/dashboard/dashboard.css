@@ -222,9 +222,22 @@
 
 .body-detail-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   justify-items: stretch;
   gap: 0;
+}
+
+.body-detail-grid span {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 2px;
+  white-space: nowrap;
+}
+
+.body-detail-grid b {
+  display: inline;
+  margin-top: 0;
 }
 
 .record-range {

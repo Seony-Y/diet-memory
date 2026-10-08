@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ChangeEvent, FormEvent, InputHTMLAttributes } from "react";
 import { X } from "lucide-react";
 import type { Sheet } from "../../app/types";
@@ -12,6 +12,10 @@ import { MealForm } from "../meals/MealForm";
 import { getNutritionGoalSummary } from "../nutrition/model";
 import type { NutritionGoal } from "../nutrition/model";
 import { SelectField } from "../../shared/ui";
+import {
+  prefetchPopularPublicFoods,
+  searchPublicFoods,
+} from "../../lib/public-food-api";
 
 interface RecordSheetProps {
   sheet: Exclude<Sheet, null>;
@@ -300,12 +304,126 @@ function FoodForm({
   categories: IngredientCategory[];
   submit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
+  const publicFoodsApiConfigured = Boolean(
+    import.meta.env.VITE_PUBLIC_FOODS_API_KEY ??
+      import.meta.env.VITE_PUBLIC_FOOD_API_KEY,
+  );
   const [selectedCategory, setSelectedCategory] = useState(
     value?.category ?? categories[0]?.name ?? "기타",
   );
   const [categoryColor, setCategoryColor] = useState(
     value?.categoryColor ?? categories[0]?.color ?? categoryColorPalette[0],
   );
+  const [nameDraft, setNameDraft] = useState(value?.name ?? "");
+  const [unitDraft, setUnitDraft] = useState(value?.unit ?? "g");
+  const [amountDraft, setAmountDraft] = useState(String(value?.amount ?? 100));
+  const [stockAmountDraft, setStockAmountDraft] = useState(
+    String(value?.stockAmount ?? 0),
+  );
+  const [stockUnitDraft, setStockUnitDraft] = useState(
+    value?.stockUnit ?? "g",
+  );
+  const [caloriesDraft, setCaloriesDraft] = useState(
+    String(value?.calories ?? 0),
+  );
+  const [carbsDraft, setCarbsDraft] = useState(String(value?.carbs ?? 0));
+  const [proteinDraft, setProteinDraft] = useState(String(value?.protein ?? 0));
+  const [fatDraft, setFatDraft] = useState(String(value?.fat ?? 0));
+  const [brandDraft, setBrandDraft] = useState(value?.brand ?? "");
+  const [sourceDraft, setSourceDraft] = useState<"user" | "public">(
+    value?.source ?? "user",
+  );
+  const [sourceOriginDraft, setSourceOriginDraft] = useState(
+    value?.sourceOrigin ?? "",
+  );
+  const [sourceSyncedAtDraft, setSourceSyncedAtDraft] = useState(
+    value?.sourceSyncedAt ?? "",
+  );
+  const [publicOptions, setPublicOptions] = useState<Ingredient[]>([]);
+  const [searchingPublicOptions, setSearchingPublicOptions] = useState(false);
+  const [showOptions, setShowOptions] = useState(false);
+
+  const pickPreferredName = (rawName: string, query: string) => {
+    const keyword = query.trim().toLowerCase();
+    if (!keyword) return rawName;
+    const segments = rawName
+      .split(/[>_\/|]/)
+      .map((segment) => segment.trim())
+      .filter(Boolean);
+    const matched = segments.find((segment) =>
+      segment.toLowerCase().includes(keyword),
+    );
+    return matched ?? segments.at(-1) ?? rawName;
+  };
+
+  useEffect(() => {
+    if (!publicFoodsApiConfigured) {
+      setPublicOptions([]);
+      setSearchingPublicOptions(false);
+      return;
+    }
+
+    const keyword = nameDraft.trim();
+    if (keyword.length === 1) {
+      prefetchPopularPublicFoods(keyword);
+      setPublicOptions([]);
+      setSearchingPublicOptions(false);
+      return;
+    }
+    if (keyword.length < 2) {
+      setPublicOptions([]);
+      setSearchingPublicOptions(false);
+      return;
+    }
+
+    let active = true;
+    const controller = new AbortController();
+    const timer = globalThis.setTimeout(() => {
+      setSearchingPublicOptions(true);
+      searchPublicFoods(keyword, { signal: controller.signal })
+        .then((results) => {
+          if (!active) return;
+          setPublicOptions(results.slice(0, 8));
+        })
+        .catch((error) => {
+          if (!active) return;
+          if (
+            typeof error === "object" &&
+            error !== null &&
+            "name" in error &&
+            (error as { name?: string }).name === "AbortError"
+          ) {
+            return;
+          }
+          setPublicOptions([]);
+        })
+        .finally(() => {
+          if (active) setSearchingPublicOptions(false);
+        });
+    }, 140);
+
+    return () => {
+      active = false;
+      controller.abort();
+      globalThis.clearTimeout(timer);
+    };
+  }, [nameDraft, publicFoodsApiConfigured]);
+
+  const applyPublicOption = (item: Ingredient) => {
+    setNameDraft(pickPreferredName(item.name, nameDraft));
+    setBrandDraft(item.brand ?? "");
+    setSourceDraft("public");
+    setSourceOriginDraft(item.sourceOrigin ?? "식품의약품안전처 공공데이터");
+    setSourceSyncedAtDraft(item.sourceSyncedAt ?? new Date().toISOString());
+    setUnitDraft(item.unit);
+    setAmountDraft(String(item.amount || 100));
+    setStockUnitDraft(item.unit);
+    setCaloriesDraft(String(item.calories));
+    setCarbsDraft(String(item.carbs));
+    setProteinDraft(String(item.protein));
+    setFatDraft(String(item.fat));
+    setShowOptions(false);
+  };
 
   return (
     <form onSubmit={submit}>
@@ -315,12 +433,73 @@ function FoodForm({
         description="보유 수량과 영양정보를 입력해 주세요."
       />
       <div className="form-grid">
-        <Field
-          label="재료명 *"
-          name="name"
-          defaultValue={value?.name}
-          required
-          wide
+        <label className="wide ingredient-name-field">
+          <span>재료명 *</span>
+          <input
+            name="name"
+            value={nameDraft}
+            onChange={(event) => {
+              setNameDraft(event.target.value);
+              setSourceDraft("user");
+              setSourceOriginDraft("");
+              setSourceSyncedAtDraft("");
+              setBrandDraft("");
+              setShowOptions(true);
+            }}
+            onFocus={() => setShowOptions(true)}
+            placeholder="재료명 또는 브랜드 + 재료명 입력"
+            autoComplete="off"
+            required
+          />
+          {showOptions && nameDraft.trim().length >= 2 && (
+            <div className="ingredient-autocomplete" role="listbox">
+              {searchingPublicOptions && (
+                <p className="ingredient-autocomplete-empty">공공데이터 검색 중...</p>
+              )}
+              {!searchingPublicOptions &&
+                publicOptions.map((item) => {
+                  const preferredName = pickPreferredName(item.name, nameDraft);
+                  return (
+                  <button
+                    type="button"
+                    key={String(item.id)}
+                    className="ingredient-autocomplete-option"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => applyPublicOption(item)}
+                  >
+                    <b>
+                      {item.brand ? `${item.brand} ${preferredName}` : preferredName}
+                    </b>
+                    <span>
+                      {item.amount}
+                      {item.unit} · {item.calories}kcal · 탄 {item.carbs}g 단 {item.protein}g 지 {item.fat}g
+                    </span>
+                  </button>
+                  );
+                })}
+              {!searchingPublicOptions && !publicOptions.length && (
+                <p className="ingredient-autocomplete-empty">
+                  {publicFoodsApiConfigured
+                    ? "일치하는 공공데이터가 없습니다."
+                    : "공공데이터 API 키가 설정되지 않았어요. .env.local에 VITE_PUBLIC_FOODS_API_KEY 또는 VITE_PUBLIC_FOOD_API_KEY를 추가해 주세요."}
+                </p>
+              )}
+            </div>
+          )}
+        </label>
+        <input type="hidden" name="brand" value={brandDraft} readOnly />
+        <input type="hidden" name="source" value={sourceDraft} readOnly />
+        <input
+          type="hidden"
+          name="sourceOrigin"
+          value={sourceOriginDraft}
+          readOnly
+        />
+        <input
+          type="hidden"
+          name="sourceSyncedAt"
+          value={sourceSyncedAtDraft}
+          readOnly
         />
         <label>
           <span>카테고리</span>
@@ -348,16 +527,18 @@ function FoodForm({
           <span>영양 기준 단위</span>
           <SelectField
             name="unit"
+            value={unitDraft}
             options={["g", "ml", "개", "회분"]}
-            defaultValue={value?.unit}
             ariaLabel="영양 기준 단위"
+            onChange={(next) => setUnitDraft(next)}
           />
         </label>
         <Field
           label="영양 기준 수량"
           name="amount"
           type="number"
-          defaultValue={value?.amount ?? 100}
+          value={amountDraft}
+          onChange={(event) => setAmountDraft(event.target.value)}
           required
         />
         <Field
@@ -366,23 +547,26 @@ function FoodForm({
           type="number"
           min="0"
           step="0.1"
-          defaultValue={value?.stockAmount}
+          value={stockAmountDraft}
+          onChange={(event) => setStockAmountDraft(event.target.value)}
           required
         />
         <label>
           <span>보유 단위 *</span>
           <SelectField
             name="stockUnit"
+            value={stockUnitDraft}
             options={stockUnits}
-            defaultValue={value?.stockUnit}
             ariaLabel="보유 단위"
+            onChange={(next) => setStockUnitDraft(next)}
           />
         </label>
         <Field
           label="칼로리 *"
           name="calories"
           type="number"
-          defaultValue={value?.calories}
+          value={caloriesDraft}
+          onChange={(event) => setCaloriesDraft(event.target.value)}
           unit="kcal"
           required
         />
@@ -391,7 +575,8 @@ function FoodForm({
           name="carbs"
           type="number"
           step="0.1"
-          defaultValue={value?.carbs}
+          value={carbsDraft}
+          onChange={(event) => setCarbsDraft(event.target.value)}
           unit="g"
         />
         <Field
@@ -399,7 +584,8 @@ function FoodForm({
           name="protein"
           type="number"
           step="0.1"
-          defaultValue={value?.protein}
+          value={proteinDraft}
+          onChange={(event) => setProteinDraft(event.target.value)}
           unit="g"
         />
         <Field
@@ -407,7 +593,8 @@ function FoodForm({
           name="fat"
           type="number"
           step="0.1"
-          defaultValue={value?.fat}
+          value={fatDraft}
+          onChange={(event) => setFatDraft(event.target.value)}
           unit="g"
         />
       </div>

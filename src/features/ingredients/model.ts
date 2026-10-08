@@ -1,6 +1,9 @@
 export interface Ingredient {
   id: number | string;
   name: string;
+  brand?: string;
+  sourceOrigin?: string;
+  sourceSyncedAt?: string;
   category: string;
   categoryColor: string;
   amount: number;
@@ -12,6 +15,7 @@ export interface Ingredient {
   protein: number;
   fat: number;
   favorite: boolean;
+  source?: "user" | "public";
 }
 
 export interface IngredientCategory {

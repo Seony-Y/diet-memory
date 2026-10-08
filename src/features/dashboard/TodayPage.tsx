@@ -277,6 +277,9 @@ export function TodayPage({
             <span>
               체지방률 <b>{body?.bodyFatPercent?.toFixed(1) ?? "—"}%</b>
             </span>
+            <span>
+              내장지방 <b>{body?.visceralFatLevel ?? "—"}</b>
+            </span>
           </div>
         </MetricCard>
       </div>
